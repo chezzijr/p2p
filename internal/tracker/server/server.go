@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/gofiber/fiber/v2"
 
-	"p2p/internal/database"
+	"p2p/internal/tracker/database"
 )
 
 type FiberServer struct {

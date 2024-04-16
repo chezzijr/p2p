@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"p2p/internal/server"
+	"p2p/internal/tracker/server"
 	"strconv"
 
 	_ "github.com/joho/godotenv/autoload"

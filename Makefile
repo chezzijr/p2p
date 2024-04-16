@@ -3,14 +3,22 @@
 # Build the application
 all: build
 
-build:
+build-tracker:
 	@echo "Building..."
 	
-	@go build -o main cmd/api/main.go
+	@go build -o main cmd/tracker/main.go
+
+build-peer:
+	@echo "Building..."
+	
+	@go build -o main cmd/peer/main.go
 
 # Run the application
-run:
-	@go run cmd/api/main.go
+run-tracker:
+	@go run cmd/tracker/main.go
+
+run-peer:
+	@go run cmd/peer/main.go
 
 # Create DB container
 docker-run:

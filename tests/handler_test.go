@@ -4,7 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"io"
 	"net/http"
-	"p2p/internal/server"
+	"p2p/internal/tracker"
 	"testing"
 )
 
@@ -12,7 +12,7 @@ func TestHandler(t *testing.T) {
 	// Create a Fiber app for testing
 	app := fiber.New()
 	// Inject the Fiber app into the server
-	s := &server.FiberServer{App: app}
+	s := &tracker.FiberServer{App: app}
 	// Define a route in the Fiber app
 	app.Get("/", s.HelloWorldHandler)
 	// Create a test HTTP request
