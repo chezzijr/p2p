@@ -3,10 +3,10 @@
 # Build the application
 all: build
 
-build-tracker:
+build-server:
 	@echo "Building..."
 	
-	@go build -o main cmd/tracker/main.go
+	@go build -o main cmd/server/main.go
 
 build-peer:
 	@echo "Building..."
@@ -14,8 +14,8 @@ build-peer:
 	@go build -o main cmd/peer/main.go
 
 # Run the application
-run-tracker:
-	@go run cmd/tracker/main.go
+run-server:
+	@go run cmd/server/main.go
 
 run-peer:
 	@go run cmd/peer/main.go
