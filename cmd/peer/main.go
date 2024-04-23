@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"log/slog"
-	"p2p/internal/common/torrent"
-	"p2p/internal/peer"
+	"github.com/chezzijr/p2p/internal/common/torrent"
+	"github.com/chezzijr/p2p/internal/peer"
 )
 
 var (

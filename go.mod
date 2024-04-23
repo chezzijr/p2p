@@ -1,4 +1,4 @@
-module p2p
+module github.com/chezzijr/p2p
 
 go 1.22.0
 

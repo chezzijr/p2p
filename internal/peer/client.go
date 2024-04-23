@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"p2p/internal/common/connection"
-	"p2p/internal/common/peers"
+	"github.com/chezzijr/p2p/internal/common/connection"
+	"github.com/chezzijr/p2p/internal/common/peers"
 	"time"
 )
 

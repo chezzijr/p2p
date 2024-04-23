@@ -3,8 +3,8 @@ package server
 import (
 	"log/slog"
 	"net"
-	"p2p/internal/common/api"
-	"p2p/internal/common/peers"
+	"github.com/chezzijr/p2p/internal/common/api"
+	"github.com/chezzijr/p2p/internal/common/peers"
 	"time"
 
 	"github.com/gofiber/fiber/v2"

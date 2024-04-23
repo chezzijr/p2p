@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"p2p/internal/common/api"
-	"p2p/internal/common/peers"
+	"github.com/chezzijr/p2p/internal/common/api"
+	"github.com/chezzijr/p2p/internal/common/peers"
 	"strconv"
 	"time"
 

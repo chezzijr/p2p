@@ -2,7 +2,7 @@ package tracker
 
 import (
 	"bytes"
-	"p2p/internal/common/peers"
+	"github.com/chezzijr/p2p/internal/common/peers"
     "errors"
 )
 

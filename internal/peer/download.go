@@ -5,9 +5,9 @@ import (
 	"crypto/sha1"
 	"errors"
 	"log/slog"
-	"p2p/internal/common/connection"
-	"p2p/internal/common/peers"
-	"p2p/internal/common/torrent"
+	"github.com/chezzijr/p2p/internal/common/connection"
+	"github.com/chezzijr/p2p/internal/common/peers"
+	"github.com/chezzijr/p2p/internal/common/torrent"
 	"time"
 )
 

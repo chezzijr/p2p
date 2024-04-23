@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"p2p/internal/common/torrent"
+	"github.com/chezzijr/p2p/internal/common/torrent"
 	"path"
 	"strconv"
 	"time"

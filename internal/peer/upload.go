@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
-	"p2p/internal/common/connection"
-	"p2p/internal/common/torrent"
+	"github.com/chezzijr/p2p/internal/common/connection"
+	"github.com/chezzijr/p2p/internal/common/torrent"
 	"time"
 )
 

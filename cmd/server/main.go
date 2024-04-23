@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"p2p/internal/server"
+	"github.com/chezzijr/p2p/internal/server"
 	"strconv"
 
 	_ "github.com/joho/godotenv/autoload"

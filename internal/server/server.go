@@ -5,8 +5,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"p2p/internal/server/database"
-    "p2p/internal/server/tracker"
+	"github.com/chezzijr/p2p/internal/server/database"
+    "github.com/chezzijr/p2p/internal/server/tracker"
 )
 
 type FiberServer struct {
