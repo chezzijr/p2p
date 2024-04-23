@@ -3,7 +3,6 @@ package torrent
 import (
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"p2p/internal/common/api"
@@ -35,12 +34,12 @@ func (t *TorrentFile) buildTrackerUrl(peerID [20]byte, port uint16) (string, err
 }
 
 func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, error) {
-    return []peers.Peer{
-        {
-            Ip: net.IPv4(127, 0, 0, 1),
-            Port: 1357,
-        },
-    }, nil
+    // return []peers.Peer{
+    //     {
+    //         Ip: net.IPv4(127, 0, 0, 1),
+    //         Port: 1357,
+    //     },
+    // }, nil
 
     trackerUrl, err := t.buildTrackerUrl(peerID, port)
     if err != nil {
