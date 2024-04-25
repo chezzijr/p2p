@@ -221,6 +221,7 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 
 	// start retrieving pieces
     for _, peer := range ts.peers {
+        slog.Info("Start downloading from peer", "peer", peer.String())
         go ts.downloadFromPeer(peer, piecesQueue, resultsQueue)
     }
 

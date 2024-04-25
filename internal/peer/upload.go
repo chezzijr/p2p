@@ -5,25 +5,28 @@ import (
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"os"
+	"syscall"
+	"time"
+
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/torrent"
-	"time"
 )
 
 var (
 	ErrTorrentNotFound = errors.New("torrent not found")
-    ErrOutOfBound = errors.New("out of bound")
+	ErrOutOfBound      = errors.New("out of bound")
 )
 
 // for other peers to download from this peer
 type UploadSession struct {
-	conn       net.Conn
-	peerID     [20]byte
+	conn   net.Conn
+	peerID [20]byte
 	// fd         io.Reader
-    pieces     [][]byte
+	pieces     [][]byte
 	t          *torrent.TorrentFile
 	choked     bool
 	interested bool
@@ -92,49 +95,57 @@ func (ds *UploadSession) sendBitfield(conn net.Conn) error {
 }
 
 func (session *UploadSession) getPiece(index, begin, length uint32) ([]byte, error) {
-    if index >= uint32(len(session.pieces)) {
-        return nil, ErrOutOfBound
-    }
+	if index >= uint32(len(session.pieces)) {
+		return nil, ErrOutOfBound
+	}
 
-    if begin + length > uint32(len(session.pieces[index])) {
-        return nil, ErrOutOfBound
-    }
+	if begin+length > uint32(len(session.pieces[index])) {
+		return nil, ErrOutOfBound
+	}
 
-	buf := make([]byte, length + 8)
+	buf := make([]byte, length+8)
 
-    binary.BigEndian.PutUint32(buf[0:4], index)
-    binary.BigEndian.PutUint32(buf[4:8], begin)
+	binary.BigEndian.PutUint32(buf[0:4], index)
+	binary.BigEndian.PutUint32(buf[4:8], begin)
 
-    copy(buf[8:], session.pieces[index][begin:begin+length])
+	copy(buf[8:], session.pieces[index][begin:begin+length])
 	return buf, nil
 }
 
 func (session *UploadSession) uploadToPeer() error {
 
-    slog.Info("Sending bitfield to peer")
+	slog.Info("Sending bitfield to peer")
 	err := session.sendBitfield(session.conn)
 	if err != nil {
-        slog.Error("Failed to send bitfield", "error", err)
+		slog.Error("Failed to send bitfield", "error", err)
 		return err
 	}
 
-    session.conn.SetReadDeadline(time.Now().Add(2 * time.Minute))
+	session.conn.SetReadDeadline(time.Now().Add(2 * time.Minute))
 
 	for {
 		msg, err := session.readMessage()
 		if err != nil {
-            // i/o timeout
-            if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-                slog.Info("Connection timeout, closing connection")
-                return nil
-            }
-            slog.Error("Failed to read message", "error", err)
+			// i/o timeout or connection closed
+			switch errNet, ok := err.(net.Error); {
+			case errors.Is(err, net.ErrClosed),
+				errors.Is(err, io.EOF),
+				errors.Is(err, syscall.EPIPE):
+				slog.Info("Connection closed")
+				return nil
+            case ok && errNet.Timeout():
+                slog.Info("Connection timeout")
+			default:
+				slog.Error("Failed to read message", "error", err)
+				continue
+			}
+
 		}
 
 		switch msg.ID {
 		case connection.MsgRequest:
 			index, begin, length, err := connection.ParseRequestMsg(msg)
-            slog.Info("Received request", "index", index, "begin", begin, "length", length)
+			slog.Info("Received request", "index", index, "begin", begin, "length", length)
 			if err != nil {
 				slog.Error("Failed to parse request message", "error", err)
 				continue
@@ -148,15 +159,15 @@ func (session *UploadSession) uploadToPeer() error {
 				ID:      connection.MsgPiece,
 				Payload: buf,
 			}
-            slog.Info("Sending piece", "index", index, "begin", begin, "length", length)
+			slog.Info("Sending piece", "index", index, "begin", begin, "length", length)
 			_, err = session.conn.Write(msg.Serialize())
 			if err != nil {
 				slog.Error("Failed to send piece", "error", err)
 			}
 		case connection.MsgInterested:
 			session.interested = true
-        case connection.MsgNotInterested:
-            break
+		case connection.MsgNotInterested:
+			break
 		case connection.MsgUnchoke:
 			session.choked = false
 		case connection.MsgHave:
@@ -180,42 +191,42 @@ func (s *Peer) handleConn(conn net.Conn) error {
 
 	// handshake on a torrent file
 	// if the torrent file is not found, reject the connection
-    slog.Info("Respond to handshake")
+	slog.Info("Respond to handshake")
 	t, err := s.respondHandshake(conn)
 	if err != nil {
-        slog.Error("Failed to respond to handshake", "error", err)
+		slog.Error("Failed to respond to handshake", "error", err)
 		return err
 	}
 
-    slog.Info("Opening file", "file", t.Name)
+	slog.Info("Opening file", "file", t.Name)
 	fd, err := os.Open(t.Name)
 	if err != nil {
 		return err
 	}
-    defer fd.Close()
+	defer fd.Close()
 
-    fileStat, err := fd.Stat()
-    if err != nil {
-        return err
-    }
+	fileStat, err := fd.Stat()
+	if err != nil {
+		return err
+	}
 
-    pieces := make([][]byte, len(t.PieceHashes))
-    for i := 0; i < len(t.PieceHashes); i++ {
-        begin := int64(i) * int64(t.PieceLength)
-        end := min(begin + int64(t.PieceLength), fileStat.Size())
+	pieces := make([][]byte, len(t.PieceHashes))
+	for i := 0; i < len(t.PieceHashes); i++ {
+		begin := int64(i) * int64(t.PieceLength)
+		end := min(begin+int64(t.PieceLength), fileStat.Size())
 
-        pieces[i] = make([]byte, end - begin)
-        _, err := fd.Read(pieces[i][:])
-        if err != nil {
-            return err
-        }
-    }
+		pieces[i] = make([]byte, end-begin)
+		_, err := fd.Read(pieces[i][:])
+		if err != nil {
+			return err
+		}
+	}
 
 	ds := &UploadSession{
 		conn:       conn,
 		t:          t,
 		peerID:     s.PeerID,
-        pieces:     pieces,
+		pieces:     pieces,
 		choked:     true,
 		interested: false,
 	}

@@ -16,5 +16,5 @@ type AnnounceRequest struct {
 
 type AnnounceResponse struct {
 	Interval time.Duration `bencode:"interval"`
-	Peers    []byte        `bencode:"peers"`
+	Peers    string        `bencode:"peers"`
 }

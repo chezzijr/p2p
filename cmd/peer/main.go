@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"io"
 	"log/slog"
+
 	"github.com/chezzijr/p2p/internal/common/torrent"
 	"github.com/chezzijr/p2p/internal/peer"
 )
@@ -23,7 +26,7 @@ func main() {
 
     if *seedingTorrent != "" {
         filename := *seedingTorrent
-        ut, err := torrent.GenerateTorrentFromSingleFile(filename, "http://localhost:1234", 1024)
+        ut, err := torrent.GenerateTorrentFromSingleFile(filename, "http://localhost:8081/announce", 1024)
         if err != nil {
             panic(err)
         }
@@ -44,16 +47,22 @@ func main() {
         }
 
         slog.Info("Downloading", "torrent", dt.Name)
-        err = p.Download(dt, "tests")
-        if err != nil {
-            panic(err)
-        }
+        go func(){
+            err = p.Download(dt, "tests")
+            if err != nil {
+                panic(err)
+            }
+        }()
     }
 
     slog.Info("Listening", "port", *port)
 
     err = p.RunServer()
     if err != nil {
-        panic(err)
+        if errors.Is(err, io.EOF) {
+            slog.Info("Connection closed unexpectedly")
+        } else {
+            slog.Error("Error", "error", err)
+        }
     }
 }

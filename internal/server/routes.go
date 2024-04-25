@@ -23,10 +23,10 @@ func (s *FiberServer) announceHandler(c *fiber.Ctx) error {
     }
 
     var infoHash [20]byte
-    copy(infoHash[:], req.InfoHash)
+    copy(infoHash[:], []byte(req.InfoHash))
 
     var peerID [20]byte
-    copy(peerID[:], req.PeerID)
+    copy(peerID[:], []byte(req.PeerID))
 
     ip := net.ParseIP(c.IP())
 
@@ -35,21 +35,23 @@ func (s *FiberServer) announceHandler(c *fiber.Ctx) error {
         Port: uint16(req.Port),
     }
 
-    slog.Info("Received Announce Request", "infoHash", infoHash, "peerID", peerID, "peer", peer)
     connectingPeers := s.tracker.GetPeers(infoHash)
+    slog.Info("Connecting peers", "infoHash", infoHash, "peers", connectingPeers)
+
     peerBytes := peers.Marshal(connectingPeers...)
 
-    s.tracker.AddPeer(infoHash, peerID, peer)
+    slog.Info("Adding peer", "infoHash", infoHash, "peerID", peerID, "peer", peer)
+    s.tracker.AddPeer(infoHash, peer)
 
-    slog.Info("Sending Announce Response", "peers", connectingPeers)
     c.Set("Content-Type", "text/plain; charset=utf-8")
-    c.Set("Content-Disposition", "inline")
     err := bencode.Marshal(c, api.AnnounceResponse{
         Interval: time.Minute * 15,
-        Peers:    peerBytes,
+        Peers:    string(peerBytes),
     })
+
     if err != nil {
         slog.Error("Receving error", "error", err)
     }
-    return nil
+
+    return err
 }

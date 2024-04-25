@@ -1,14 +1,14 @@
 package torrent
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"github.com/chezzijr/p2p/internal/common/api"
-	"github.com/chezzijr/p2p/internal/common/peers"
 	"strconv"
 	"time"
+
+	"github.com/chezzijr/p2p/internal/common/api"
+	"github.com/chezzijr/p2p/internal/common/peers"
 
 	"github.com/jackpal/bencode-go"
 )
@@ -34,40 +34,31 @@ func (t *TorrentFile) buildTrackerUrl(peerID [20]byte, port uint16) (string, err
 }
 
 func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, error) {
-    // return []peers.Peer{
-    //     {
-    //         Ip: net.IPv4(127, 0, 0, 1),
-    //         Port: 1357,
-    //     },
-    // }, nil
-
     trackerUrl, err := t.buildTrackerUrl(peerID, port)
     if err != nil {
         return nil, err
     }
+    slog.Info("Build tracker url", "url", trackerUrl)
     client := &http.Client{
         Timeout: 15 * time.Second,
     }
 
+    slog.Info("Requesting peers from tracker", "torrent", t.Name)
     resp, err := client.Get(trackerUrl)
     if err != nil {
         return nil, err
     }
     defer resp.Body.Close()
 
-    // read response to string
-    respbytes, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return nil, err
-    }
-    slog.Debug("Tracker response: %s", string(respbytes))
 
-
+    slog.Info("Received response from tracker", "status", resp.Status)
     var r api.AnnounceResponse
     err = bencode.Unmarshal(resp.Body, &r)
     if err != nil {
         return nil, err
     }
+
+    slog.Info("Unmarshalled response", "response", r)
 
     return peers.Unmarshal([]byte(r.Peers))
 }

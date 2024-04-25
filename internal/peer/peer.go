@@ -3,15 +3,17 @@ package peer
 import (
 	"crypto/rand"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"github.com/chezzijr/p2p/internal/common/torrent"
 	"path"
 	"strconv"
 	"time"
+
+	"github.com/chezzijr/p2p/internal/common/torrent"
 )
 
 type Peer struct {
@@ -32,6 +34,8 @@ func NewPeer(port uint16) (*Peer, error) {
 		return nil, err
 	}
 
+	slog.Info("Joining the network", "peerID", peerID, "port", port)
+
 	return &Peer{
 		PeerID:     peerID,
 		Port:       port,
@@ -40,8 +44,8 @@ func NewPeer(port uint16) (*Peer, error) {
 	}, nil
 }
 
-func (s *Peer) AddTorrent(t... *torrent.TorrentFile) {
-    s.Torrents = append(s.Torrents, t...)
+func (s *Peer) AddTorrent(t ...*torrent.TorrentFile) {
+	s.Torrents = append(s.Torrents, t...)
 }
 
 func (s *Peer) RunServer() error {
@@ -51,28 +55,20 @@ func (s *Peer) RunServer() error {
 	}
 	defer lis.Close()
 
-	// seed to server every 10 minutes
-	ticker := time.NewTicker(10 * time.Minute)
 	go func() {
 		for {
-			select {
-			case <-ticker.C:
-				for _, t := range s.Torrents {
-					s.Seed(t)
-				}
-			case <-s.StopServer:
-				ticker.Stop()
-				return
-			}
+            for _, t := range s.Torrents {
+                s.Seed(t)
+            }
+            time.Sleep(10 * time.Second)
 		}
 	}()
 
-
-    slog.Info("Start accepting connections", "port", s.Port)
+	slog.Info("Start accepting connections", "port", s.Port)
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-            slog.Error("Failed to accept connection", "error", err)
+			slog.Error("Failed to accept connection", "error", err)
 			return err
 		}
 
@@ -81,18 +77,23 @@ func (s *Peer) RunServer() error {
 }
 
 func (s *Peer) Download(t *torrent.TorrentFile, filepath string) error {
-    slog.Info("Requesting peers from tracker", "torrent", t.Name)
+	slog.Info("Requesting peers from tracker", "torrent", t.Name)
 	peers, err := t.RequestPeers(s.PeerID, s.Port)
 	if err != nil {
-        slog.Error("Failed to request peers", "error", err)
+		slog.Error("Failed to request peers", "error", err)
 		return err
 	}
 
-    slog.Info("Downloading", "torrent", t.Name)
+    if len(peers) == 0 {
+        slog.Error("No peers available")
+        return fmt.Errorf("No active peers available")
+    }
+
+	slog.Info("Downloading", "torrent", t.Name)
 	session := NewDownloadSession(s.PeerID, peers, t)
 	buf, err := session.Download()
 	if err != nil {
-        slog.Error("Failed to download", "error", err)
+		slog.Error("Failed to download", "error", err)
 		return err
 	}
 
@@ -122,11 +123,19 @@ func (s *Peer) Seed(t *torrent.TorrentFile) error {
 	}
 	base.RawQuery = params.Encode()
 	trackerUrl := base.String()
+
 	resp, err := http.Get(trackerUrl)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Seeding", "url", t.Announce, "response", string(respBody))
 
 	// ...
 	return nil
