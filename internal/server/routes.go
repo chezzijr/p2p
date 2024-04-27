@@ -3,22 +3,25 @@ package server
 import (
 	"log/slog"
 	"net"
-	"github.com/chezzijr/p2p/internal/common/api"
-	"github.com/chezzijr/p2p/internal/common/peers"
 	"time"
 
+	"github.com/chezzijr/p2p/internal/common/torrent"
+    "github.com/chezzijr/p2p/internal/common/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackpal/bencode-go"
+    "github.com/chezzijr/p2p/internal/common/peers"
 )
 
 func (s *FiberServer) RegisterFiberRoutes() {
 	s.App.Get("/announce", s.announceHandler)
+
+    s.App.Post("/upload", s.uploadHandler)
 }
+
 
 func (s *FiberServer) announceHandler(c *fiber.Ctx) error {
     var req api.AnnounceRequest
     if err := c.QueryParser(&req); err != nil {
-        slog.Error("Error parsing query", "error", err)
         return err
     }
 
@@ -36,14 +39,11 @@ func (s *FiberServer) announceHandler(c *fiber.Ctx) error {
     }
 
     connectingPeers := s.tracker.GetPeers(infoHash)
-    slog.Info("Connecting peers", "infoHash", infoHash, "peers", connectingPeers)
 
     peerBytes := peers.Marshal(connectingPeers...)
 
-    slog.Info("Adding peer", "infoHash", infoHash, "peerID", peerID, "peer", peer)
     s.tracker.AddPeer(infoHash, peer)
 
-    c.Set("Content-Type", "text/plain; charset=utf-8")
     err := bencode.Marshal(c, api.AnnounceResponse{
         Interval: time.Minute * 15,
         Peers:    string(peerBytes),
@@ -55,3 +55,49 @@ func (s *FiberServer) announceHandler(c *fiber.Ctx) error {
 
     return err
 }
+
+func (s *FiberServer) uploadHandler(ctx *fiber.Ctx) error {
+    form, err := ctx.MultipartForm()
+    if err != nil {
+        return err
+    }
+
+    fileHeaders, ok := form.File["metainfo_files"]
+    if !ok {
+        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "no file found",
+        })
+    }
+
+    if len(fileHeaders) == 0 {
+        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "no file found",
+        })
+    }
+
+    torrents := make([]*torrent.TorrentFile, 0, len(fileHeaders))
+
+    for _, fileHeader := range fileHeaders {
+        file, err := fileHeader.Open()
+        if err != nil {
+            return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+                "error": "Could not open file",
+            })
+        }
+        defer file.Close()
+
+        torrent, err := torrent.OpenFromReader(file)
+        if err != nil {
+            return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+                "error": "File is not a valid torrent file",
+            })
+        }
+
+        torrents = append(torrents, torrent)
+    }
+
+    s.db.AddBulkTorrents(torrents)
+
+    return nil
+}
+
