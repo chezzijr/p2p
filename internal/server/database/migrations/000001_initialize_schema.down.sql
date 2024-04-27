@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS torrents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file BYTEA NOT NULL,
+    created_at TEXT NOT NULL,
+);

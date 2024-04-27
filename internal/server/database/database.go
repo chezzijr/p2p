@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"time"
+    "github.com/chezzijr/p2p/internal/common/torrent"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/joho/godotenv/autoload"
@@ -14,6 +15,10 @@ import (
 
 type Service interface {
 	Health() map[string]string
+    GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, error)
+    GetTorrentByID(id int) (*torrent.TorrentFile, error)
+    AddTorrent(torrent *torrent.TorrentFile) error
+    AddBulkTorrents(torrents []*torrent.TorrentFile) error
 }
 
 type service struct {
