@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"errors"
-	"log/slog"
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/peers"
 	"github.com/chezzijr/p2p/internal/common/torrent"
@@ -83,14 +82,12 @@ func (s *pieceDownloadSession) readMessage() error {
 		}
 		s.downloaded += n
 		s.backlog--
-        slog.Info("Received piece", "index", s.index, "downloaded", s.downloaded)
 	}
 	return nil
 }
 
 func checkIntegrity(buf []byte, piece *pieceInfo) error {
 	hash := sha1.Sum(buf)
-    slog.Info("Checking integrity", "expected", piece.hash, "actual", hash)
 	if !bytes.Equal(hash[:], piece.hash[:]) {
 		return ErrIntegrity
 	}
@@ -98,7 +95,6 @@ func checkIntegrity(buf []byte, piece *pieceInfo) error {
 }
 
 func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
-    slog.Info("Create new piece download session", "index", pi.index, "length", pi.length)
 	session := pieceDownloadSession{
 		index:          pi.index,
 		assignedClient: c,
@@ -120,11 +116,8 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 					blockSize = pi.length - session.requested
 				}
 
-                slog.Info("Sending request", "index", pi.index, "begin", session.requested, "length", blockSize)
-
 				err := c.SendRequest(uint32(pi.index), uint32(session.requested), uint32(blockSize))
 				if err != nil {
-                    slog.Error("Failed to send request", "index", pi.index, "begin", session.requested, "length", blockSize, "error", err)
 					return nil, err
 				}
 
@@ -133,7 +126,6 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 			}
 		}
 
-        slog.Info("Reading message", "index", pi.index)
 		err := session.readMessage()
 		if err != nil {
 			return nil, err
@@ -144,20 +136,15 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 }
 
 func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
-    slog.Info("Connecting to peer", "peer", peer.String())
 	c, err := NewClient(peer, ts.peerID, ts.InfoHash)
 	if err != nil {
-		slog.Error("Failed to handshake with peer", "peer", peer.String(), "error", err)
 		return
 	}
 
-	defer c.Close()
-	slog.Info("Handshake completed", "peer", peer.String())
-
-    slog.Info("Sending unchoke", "peer", peer.String())
-	c.SendUnchoke()
-
-    slog.Info("Sending interested", "peer", peer.String())
+	defer func() {
+        c.SendNotInterested()
+        c.Close()
+    }()
 	c.SendInterested()
 
 	for pi := range pQ {
@@ -166,27 +153,22 @@ func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo,
 			continue
 		}
 
-        slog.Info("Downloading piece", "index", pi.index, "peer", peer.String())
 		// download piece
         buf, err := attemptDownloadPiece(c, pi)
         if err != nil {
-            slog.Error("Failed to download piece", "index", pi.index, "peer", peer.String(), "error", err)
             pQ <- pi
             return
         }
-        slog.Info("Downloaded piece", "bytes", buf[:], "index", pi.index, "length", pi.length)
 
-        slog.Info("Checking integrity", "index", pi.index, "peer", peer.String())
         if err := checkIntegrity(buf, pi); err != nil {
-            slog.Error("Integrity check failed", "index", pi.index, "peer", peer.String())
             pQ <- pi
             return
         }
 
-        slog.Info("Downloaded piece", "index", pi.index, "length", pi.length, "peer", peer.String())
         c.SendHave(pi.index)
         rQ <- &pieceResult{index: pi.index, buf: buf}
 	}
+
 }
 
 func (ts *DownloadSession) getPieceBoundAt(index int) (int, int) {
@@ -199,9 +181,6 @@ func (ts *DownloadSession) getPieceBoundAt(index int) (int, int) {
 }
 
 func (ts *DownloadSession) Download() ([]byte, error) {
-	slog.Info("Start downloading", "filename", ts.Name)
-    slog.Info("Torrent description", "length", ts.Length, "piece length", ts.PieceLength, "num pieces", len(ts.PieceHashes))
-
 	piecesQueue := make(chan *pieceInfo, len(ts.PieceHashes))
 	defer close(piecesQueue)
 
@@ -216,12 +195,10 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 			hash:   hash,
 			length: end - begin,
 		}
-        slog.Info("Enqueued piece", "index", i, "length", end - begin, "hash", hash)
 	}
 
 	// start retrieving pieces
     for _, peer := range ts.peers {
-        slog.Info("Start downloading from peer", "peer", peer.String())
         go ts.downloadFromPeer(peer, piecesQueue, resultsQueue)
     }
 
@@ -233,8 +210,6 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 		begin, end := ts.getPieceBoundAt(res.index)
 		copy(buf[begin:end], res.buf)
 		donePieces++
-
-        slog.Info("Downloaded piece", "index", res.index, "progress", donePieces*100/len(ts.PieceHashes))
 
 		// update progress to tracker server
 	}

@@ -113,8 +113,6 @@ func (session *UploadSession) getPiece(index, begin, length uint32) ([]byte, err
 }
 
 func (session *UploadSession) uploadToPeer() error {
-
-	slog.Info("Sending bitfield to peer")
 	err := session.sendBitfield(session.conn)
 	if err != nil {
 		slog.Error("Failed to send bitfield", "error", err)
@@ -135,6 +133,7 @@ func (session *UploadSession) uploadToPeer() error {
 				return nil
             case ok && errNet.Timeout():
                 slog.Info("Connection timeout")
+                return nil
 			default:
 				slog.Error("Failed to read message", "error", err)
 				continue
@@ -145,41 +144,49 @@ func (session *UploadSession) uploadToPeer() error {
 		switch msg.ID {
 		case connection.MsgRequest:
 			index, begin, length, err := connection.ParseRequestMsg(msg)
-			slog.Info("Received request", "index", index, "begin", begin, "length", length)
 			if err != nil {
-				slog.Error("Failed to parse request message", "error", err)
 				continue
 			}
 			buf, err := session.getPiece(index, begin, length)
 			if err != nil {
-				slog.Error("Failed to get piece", "error", err)
 				continue
 			}
 			msg := &connection.Message{
 				ID:      connection.MsgPiece,
 				Payload: buf,
 			}
-			slog.Info("Sending piece", "index", index, "begin", begin, "length", length)
 			_, err = session.conn.Write(msg.Serialize())
 			if err != nil {
-				slog.Error("Failed to send piece", "error", err)
+                continue
 			}
 		case connection.MsgInterested:
 			session.interested = true
+            err := session.sendUnchoke()
+            if err != nil {
+                slog.Error("Failed to send unchoke", "error", err)
+                continue
+            }
+            session.choked = false
+            
 		case connection.MsgNotInterested:
 			break
-		case connection.MsgUnchoke:
-			session.choked = false
 		case connection.MsgHave:
 			// we were informed that the peer has a piece
 			index, err := connection.ParseHaveMsg(msg)
 			if err != nil {
-				slog.Error("Failed to parse have message", "error", err)
 				continue
 			}
 			slog.Info("Peer has piece", "index", index)
 		}
 	}
+}
+
+func (session *UploadSession) sendUnchoke() error {
+    msg := &connection.Message{
+        ID: connection.MsgUnchoke,
+    }
+    _, err := session.conn.Write(msg.Serialize())
+    return err
 }
 
 func (session *UploadSession) readMessage() (*connection.Message, error) {
