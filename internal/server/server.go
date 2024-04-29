@@ -1,33 +1,26 @@
 package server
 
 import (
-	"time"
-
 	"github.com/gofiber/fiber/v2"
-
-	"github.com/chezzijr/p2p/internal/server/database"
 )
 
 type FiberServer struct {
 	*fiber.App
-
-    interval time.Duration
-    tracker  Tracker
-
-	db database.Service
+    trackerServer  Tracker
+    explorerServer Explorer
 }
 
-func New() *FiberServer {
+func New(trackerServer Tracker, explorerServer Explorer) *FiberServer {
 	server := &FiberServer{
 		App: fiber.New(fiber.Config{
 			ServerHeader: "p2p",
 			AppName:      "p2p",
 		}),
-        interval: 15 * time.Minute,
-        tracker:  NewTracker(),
-
-		db: database.New(),
+        trackerServer:  trackerServer,
+        explorerServer: explorerServer,
 	}
 
 	return server
 }
+
+

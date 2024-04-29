@@ -2,13 +2,72 @@ package database
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/gob"
+	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/chezzijr/p2p/internal/common/torrent"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/joho/godotenv/autoload"
 )
 
-func (s *service) GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, error) {
+type Postgres interface {
+	Health() map[string]string
+    GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, error)
+    GetTorrentByID(id int) (*torrent.TorrentFile, error)
+    AddTorrent(torrent *torrent.TorrentFile) error
+    AddBulkTorrents(torrents []*torrent.TorrentFile) error
+}
+
+type postgres struct {
+	db *sql.DB
+}
+
+var (
+	pgDatabase   = os.Getenv("PG_DATABASE")
+	pgPassword   = os.Getenv("PG_PASSWORD")
+	pgUsername   = os.Getenv("PG_USERNAME")
+	pgPort       = os.Getenv("PG_PORT")
+	pgHost       = os.Getenv("PG_HOST")
+	pgInstance *postgres
+)
+
+func NewPostgres() (Postgres, error) {
+	// Reuse Connection
+	if pgInstance != nil {
+		return pgInstance, nil
+	}
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", pgUsername, pgPassword, pgHost, pgPort, pgDatabase)
+	db, err := sql.Open("pgx", connStr)
+	if err != nil {
+        return nil, err
+	}
+	pgInstance = &postgres{
+		db: db,
+	}
+	return pgInstance, nil
+}
+
+func (s *postgres) Health() map[string]string {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	err := s.db.PingContext(ctx)
+	if err != nil {
+		log.Fatalf(fmt.Sprintf("db down: %v", err))
+	}
+
+	return map[string]string{
+		"message": "It's healthy",
+	}
+}
+
+func (s *postgres) GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, error) {
     stmt, err := s.db.Prepare("SELECT id, file, created_at FROM torrents ORDER BY created_at DESC LIMIT $1 OFFSET $2")
     if err != nil {
         return nil, err
@@ -38,7 +97,7 @@ func (s *service) GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, 
     return torrents, nil
 }
 
-func (s *service) GetTorrentByID(id int) (*torrent.TorrentFile, error) {
+func (s *postgres) GetTorrentByID(id int) (*torrent.TorrentFile, error) {
     stmt, err := s.db.Prepare("SELECT file FROM torrents WHERE id = $1")
     if err != nil {
         return nil, err
@@ -56,7 +115,7 @@ func (s *service) GetTorrentByID(id int) (*torrent.TorrentFile, error) {
     return &torrent, nil
 }
 
-func (s *service) AddTorrent(torrent *torrent.TorrentFile) error {
+func (s *postgres) AddTorrent(torrent *torrent.TorrentFile) error {
     stmt, err := s.db.Prepare("INSERT INTO torrents (file) VALUES ($1)")
     if err != nil {
         return err
@@ -73,7 +132,7 @@ func (s *service) AddTorrent(torrent *torrent.TorrentFile) error {
     return nil
 }
 
-func (s *service) AddBulkTorrents(torrents []*torrent.TorrentFile) error {
+func (s *postgres) AddBulkTorrents(torrents []*torrent.TorrentFile) error {
     stmt, err := s.db.Prepare("INSERT INTO torrents (file) VALUES ($1)")
     if err != nil {
         return err

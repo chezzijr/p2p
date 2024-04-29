@@ -3,20 +3,28 @@ package main
 import (
 	"fmt"
 	"os"
-	"github.com/chezzijr/p2p/internal/server"
 	"strconv"
+
+	"github.com/chezzijr/p2p/internal/server"
+	"github.com/chezzijr/p2p/internal/server/database"
+	"go.uber.org/fx"
 
 	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 
-	server := server.New()
+	fx.New(
+        fx.Provide(database.NewPostgres),
+        fx.Provide(database.NewRedis),
+        fx.Provide(server.NewTrackerServer),
+        fx.Provide(server.NewExplorerServer),
+		fx.Provide(server.New),
+        fx.Invoke(func(server *server.FiberServer) error {
+            server.RegisterFiberRoutes()
 
-	server.RegisterFiberRoutes()
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
-	err := server.Listen(fmt.Sprintf(":%d", port))
-	if err != nil {
-		panic(fmt.Sprintf("cannot start server: %s", err))
-	}
+            port, _ := strconv.Atoi(os.Getenv("PORT"))
+            return server.Listen(fmt.Sprintf(":%d", port))
+        }),
+	).Run()
 }
