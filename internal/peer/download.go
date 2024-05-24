@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"errors"
+	"time"
+
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/peers"
 	"github.com/chezzijr/p2p/internal/common/torrent"
-	"time"
 )
 
 const (
@@ -27,11 +28,11 @@ type DownloadSession struct {
 }
 
 func NewDownloadSession(peerID [20]byte, peers []peers.Peer, tf *torrent.TorrentFile) *DownloadSession {
-    return &DownloadSession{
-        peerID:       peerID,
-        peers:        peers,
-        TorrentFile:  tf,
-    }
+	return &DownloadSession{
+		peerID:      peerID,
+		peers:       peers,
+		TorrentFile: tf,
+	}
 }
 
 type pieceInfo struct {
@@ -142,9 +143,9 @@ func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo,
 	}
 
 	defer func() {
-        c.SendNotInterested()
-        c.Close()
-    }()
+		c.SendNotInterested()
+		c.Close()
+	}()
 	c.SendInterested()
 
 	for pi := range pQ {
@@ -154,19 +155,19 @@ func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo,
 		}
 
 		// download piece
-        buf, err := attemptDownloadPiece(c, pi)
-        if err != nil {
-            pQ <- pi
-            return
-        }
+		buf, err := attemptDownloadPiece(c, pi)
+		if err != nil {
+			pQ <- pi
+			return
+		}
 
-        if err := checkIntegrity(buf, pi); err != nil {
-            pQ <- pi
-            return
-        }
+		if err := checkIntegrity(buf, pi); err != nil {
+			pQ <- pi
+			return
+		}
 
-        c.SendHave(pi.index)
-        rQ <- &pieceResult{index: pi.index, buf: buf}
+		c.SendHave(pi.index)
+		rQ <- &pieceResult{index: pi.index, buf: buf}
 	}
 
 }
@@ -198,9 +199,9 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 	}
 
 	// start retrieving pieces
-    for _, peer := range ts.peers {
-        go ts.downloadFromPeer(peer, piecesQueue, resultsQueue)
-    }
+	for _, peer := range ts.peers {
+		go ts.downloadFromPeer(peer, piecesQueue, resultsQueue)
+	}
 
 	// assemble pieces
 	buf := make([]byte, ts.Length)
