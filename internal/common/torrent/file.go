@@ -143,3 +143,7 @@ func OpenFromReader(r io.Reader) (*TorrentFile, error) {
 
 	return btf.toTorrentFile()
 }
+
+func (t *TorrentFile) Write(w io.Writer) error {
+    return bencode.Marshal(w, t.toTorrentBencode())
+}

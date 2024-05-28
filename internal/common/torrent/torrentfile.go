@@ -12,12 +12,12 @@ var (
 )
 
 type TorrentFile struct {
-	Announce    string
-	InfoHash    [sha1.Size]byte
-	PieceHashes [][sha1.Size]byte
-	PieceLength int
-	Length      int
-	Name        string
+	Announce    string            `json:"announce"`
+	InfoHash    [sha1.Size]byte   `json:"info_hash"`
+	PieceHashes [][sha1.Size]byte `json:"piece_hashes"`
+	PieceLength int               `json:"piece_length"`
+	Length      int               `json:"length"`
+	Name        string            `json:"name"`
 }
 
 type torrentBencode struct {
