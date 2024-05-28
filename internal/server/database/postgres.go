@@ -29,11 +29,11 @@ type postgres struct {
 }
 
 var (
-	pgDatabase   = os.Getenv("PG_DATABASE")
-	pgPassword   = os.Getenv("PG_PASSWORD")
-	pgUsername   = os.Getenv("PG_USERNAME")
-	pgPort       = os.Getenv("PG_PORT")
-	pgHost       = os.Getenv("PG_HOST")
+	pgDatabase   = os.Getenv("POSTGRES_DB")
+	pgPassword   = os.Getenv("POSTGRES_PASSWORD")
+	pgUsername   = os.Getenv("POSTGRES_USER")
+	pgPort       = os.Getenv("POSTGRES_PORT")
+	pgHost       = os.Getenv("POSTGRES_HOST")
 	pgInstance *postgres
 )
 
