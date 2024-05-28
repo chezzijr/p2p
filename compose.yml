@@ -1,17 +1,11 @@
-version: '3.8'
-
 services:
   psql:
     image: postgres:alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DATABASE}
-      POSTGRES_USER: ${POSTGRES_USERNAME}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - psql_volume:/var/lib/postgresql/data
-    restart: unless-stop
+    restart: unless-stopped
     healthcheck:
       test:
         [
@@ -25,7 +19,7 @@ services:
   redis:
     image: redis:alpine
     container_name: redis
-    restart: unless-stop
+    restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning
     volumes:
       - redis-data:/data
@@ -39,3 +33,6 @@ services:
 
 volumes:
   psql_volume:
+    driver: local
+  redis-data:
+    driver: local
