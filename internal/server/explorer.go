@@ -1,6 +1,9 @@
 package server
 
 import (
+	"strconv"
+
+	"github.com/chezzijr/p2p/internal/common/api"
 	"github.com/chezzijr/p2p/internal/common/torrent"
 	"github.com/chezzijr/p2p/internal/server/database"
 	"github.com/gofiber/fiber/v2"
@@ -12,6 +15,8 @@ var (
 
 type Explorer interface {
     UploadHandler(ctx *fiber.Ctx) error
+    ListHandler(ctx *fiber.Ctx) error
+    DownloadHandler(ctx *fiber.Ctx) error
 }
 
 // Explorer is a struct that represents the explorerSrv server
@@ -76,4 +81,52 @@ func (e *explorerSrv) UploadHandler(ctx *fiber.Ctx) error {
     return nil
 }
 
+func (e *explorerSrv) ListHandler(ctx *fiber.Ctx) error {
+    var req api.ExploreRequest
+    if err := ctx.BodyParser(&req); err != nil {
+        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": err.Error(),
+        })
+    }
 
+    if req.Limit == 0 {
+        req.Limit = 10
+    }
+
+    torrents, err := e.pg.GetRecentTorrents(req.Offset, req.Limit)
+    if err != nil {
+        return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": err.Error(),
+        })
+    }
+
+    return ctx.JSON(torrents)
+}
+
+func (e *explorerSrv) DownloadHandler(ctx *fiber.Ctx) error {
+    id := ctx.Params("id")
+    if id == "" {
+        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "id is required",
+        })
+    }
+
+    idInt, err := strconv.Atoi(id)
+    if err != nil {
+        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "id must be an integer",
+        })
+    }
+
+    t, err := e.pg.GetTorrentByID(idInt)
+    if err != nil {
+        return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": err.Error(),
+        })
+    }
+
+    // download torrent file
+    ctx.Set(fiber.HeaderContentType, "application/x-bittorrent")
+    ctx.Set(fiber.HeaderContentDisposition, "attachment; filename=torrent.torrent")
+    return t.Write(ctx)
+}
