@@ -82,8 +82,8 @@ func (e *explorerSrv) UploadHandler(ctx *fiber.Ctx) error {
 }
 
 func (e *explorerSrv) ListHandler(ctx *fiber.Ctx) error {
-    var req api.ExploreRequest
-    if err := ctx.BodyParser(&req); err != nil {
+    var req api.ExploreRequestParam
+    if err := ctx.QueryParser(&req); err != nil {
         return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "error": err.Error(),
         })
