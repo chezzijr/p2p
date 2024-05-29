@@ -1,23 +1,27 @@
 # Simple Makefile for a Go project
+include .env
+# connection string
+POSTGRES_URL=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable
+MIGRATE_PATH=internal/server/database/migrations
 
 # Build the application
 all: build
 
-build-server:
+server-build:
 	@echo "Building..."
 	
 	@go build -o main cmd/server/main.go
 
-build-peer:
+peer-build:
 	@echo "Building..."
 	
 	@go build -o main cmd/peer/main.go
 
 # Run the application
-run-server:
+server-run:
 	@go run cmd/server/main.go
 
-run-peer:
+peer-run:
 	@go run cmd/peer/main.go
 
 # Create DB container
@@ -47,6 +51,14 @@ test:
 clean:
 	@echo "Cleaning..."
 	@rm -f main
+
+migrate-up:
+	@echo "Migrating up..."
+	@migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) up
+
+migrate-down:
+	@echo "Migrating down..."
+	@migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) down
 
 # Live Reload
 watch:
