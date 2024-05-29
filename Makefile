@@ -53,12 +53,34 @@ clean:
 	@rm -f main
 
 migrate-up:
-	@echo "Migrating up..."
-	@migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) up
+	@if command -v migrate > /dev/null; then \
+		echo "Migrating up..."; \
+		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) up;\
+	else \
+		read -p "migrate is not installed. Do you want to install it? [Y/n] " choice; \
+	    if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
+	        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
+	        migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) up; \
+	    else \
+	        echo "You chose not to install migrate. Exiting..."; \
+	        exit 1; \
+	    fi; \
+	fi
 
 migrate-down:
-	@echo "Migrating down..."
-	@migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) down
+	@if command -v migrate > /dev/null; then \
+		echo "Migrating down..."; \
+		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) down; \
+	else \
+		read -p "migrate is not installed. Do you want to install it? [Y/n] " choice; \
+	    if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
+	        go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
+	        migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) down; \
+	    else \
+	        echo "You chose not to install migrate. Exiting..."; \
+	        exit 1; \
+	    fi; \
+	fi
 
 # Live Reload
 watch:
