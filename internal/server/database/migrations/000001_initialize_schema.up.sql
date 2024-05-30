@@ -1,1 +1,5 @@
-DROP TABLE IF EXISTS torrents;
+CREATE TABLE IF NOT EXISTS torrents (
+    id SERIAL PRIMARY KEY,
+    file BYTEA NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
