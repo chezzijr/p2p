@@ -27,3 +27,6 @@ tmp/
 
 # Project build
 main
+
+# torrent files
+*.torrent
