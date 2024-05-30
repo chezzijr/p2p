@@ -76,17 +76,13 @@ func (e *explorerSrv) UploadHandler(ctx *fiber.Ctx) error {
         torrents = append(torrents, torrent)
     }
 
-    e.pg.AddBulkTorrents(torrents)
-
-    return nil
+    return e.pg.AddBulkTorrents(torrents)
 }
 
 func (e *explorerSrv) ListHandler(ctx *fiber.Ctx) error {
     var req api.ExploreRequestParam
     if err := ctx.QueryParser(&req); err != nil {
-        return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": err.Error(),
-        })
+        return err
     }
 
     if req.Limit == 0 {
@@ -95,9 +91,7 @@ func (e *explorerSrv) ListHandler(ctx *fiber.Ctx) error {
 
     torrents, err := e.pg.GetRecentTorrents(req.Offset, req.Limit)
     if err != nil {
-        return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": err.Error(),
-        })
+        return err
     }
 
     return ctx.JSON(torrents)
