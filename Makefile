@@ -55,7 +55,7 @@ clean:
 migrate-up:
 	@if command -v migrate > /dev/null; then \
 		echo "Migrating up..."; \
-		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) up;\
+		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) -verbose up;\
 	else \
 		read -p "migrate is not installed. Do you want to install it? [Y/n] " choice; \
 	    if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
@@ -70,7 +70,7 @@ migrate-up:
 migrate-down:
 	@if command -v migrate > /dev/null; then \
 		echo "Migrating down..."; \
-		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) down; \
+		migrate -path $(MIGRATE_PATH) -database $(POSTGRES_URL) -verbose down; \
 	else \
 		read -p "migrate is not installed. Do you want to install it? [Y/n] " choice; \
 	    if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
