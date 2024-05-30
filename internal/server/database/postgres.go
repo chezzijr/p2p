@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/gob"
 	"fmt"
 	"log"
 	"os"
@@ -68,30 +67,34 @@ func (s *postgres) Health() map[string]string {
 }
 
 func (s *postgres) GetRecentTorrents(limit, offset int) ([]*torrent.TorrentFile, error) {
-    stmt, err := s.db.Prepare("SELECT id, file, created_at FROM torrents ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+    stmt, err := s.db.Prepare("SELECT * FROM torrents")
     if err != nil {
         return nil, err
     }
 
-    rows, err := stmt.Query(limit, offset)
+    rows, err := stmt.Query()
     if err != nil {
         return nil, err
     }
     defer rows.Close()
 
-    var torrents []*torrent.TorrentFile
+    torrents := make([]*torrent.TorrentFile, 0, limit)
     for rows.Next() {
         var id int
-        var buf bytes.Buffer
+        var buf []byte
         var createdAt time.Time
 
         err := rows.Scan(&id, &buf, &createdAt)
         if err != nil {
             return nil, err
         }
-        var torrent torrent.TorrentFile
-        gob.NewDecoder(&buf).Decode(&torrent)
-        torrents = append(torrents, &torrent)
+
+        t, err := torrent.OpenFromReader(bytes.NewBuffer(buf))
+        if err != nil {
+            return nil, err
+        }
+
+        torrents = append(torrents, t)
     }
 
     return torrents, nil
@@ -109,22 +112,29 @@ func (s *postgres) GetTorrentByID(id int) (*torrent.TorrentFile, error) {
         return nil, err
     }
 
-    var torrent torrent.TorrentFile
-    gob.NewDecoder(&buf).Decode(&torrent)
+    // gob.NewDecoder(&buf).Decode(&torrent)
+    t, err := torrent.OpenFromReader(&buf)
+    if err != nil {
+        return nil, err
+    }
 
-    return &torrent, nil
+    return t, nil
 }
 
-func (s *postgres) AddTorrent(torrent *torrent.TorrentFile) error {
+func (s *postgres) AddTorrent(t *torrent.TorrentFile) error {
     stmt, err := s.db.Prepare("INSERT INTO torrents (file) VALUES ($1)")
     if err != nil {
         return err
     }
 
     var buf bytes.Buffer
-    gob.NewEncoder(&buf).Encode(torrent)
+    // gob.NewEncoder(&buf).Encode(torrent)
+    err = t.Write(&buf)
+    if err != nil {
+        return err
+    }
 
-    _, err = stmt.Exec(&buf)
+    _, err = stmt.Exec(buf.Bytes())
     if err != nil {
         return err
     }
@@ -132,17 +142,9 @@ func (s *postgres) AddTorrent(torrent *torrent.TorrentFile) error {
     return nil
 }
 
-func (s *postgres) AddBulkTorrents(torrents []*torrent.TorrentFile) error {
-    stmt, err := s.db.Prepare("INSERT INTO torrents (file) VALUES ($1)")
-    if err != nil {
-        return err
-    }
-
-    for _, torrent := range torrents {
-        var buf bytes.Buffer
-        gob.NewEncoder(&buf).Encode(torrent)
-
-        _, err = stmt.Exec(&buf)
+func (s *postgres) AddBulkTorrents(ts []*torrent.TorrentFile) error {
+    for _, torrent := range ts {
+        err := s.AddTorrent(torrent)
         if err != nil {
             return err
         }
