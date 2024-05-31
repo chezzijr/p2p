@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strconv"
 	"time"
 
+	"github.com/chezzijr/p2p/internal/common/api"
 	"github.com/chezzijr/p2p/internal/common/torrent"
 )
 
@@ -112,16 +112,16 @@ func (s *Peer) Seed(t *torrent.TorrentFile) error {
 	if err != nil {
 		return err
 	}
-	params := url.Values{
-		"info_hash":  []string{string(t.InfoHash[:])},
-		"peer_id":    []string{string(s.PeerID[:])},
-		"port":       []string{strconv.Itoa(int(s.Port))},
-		"uploaded":   []string{"0"},
-		"downloaded": []string{"0"},
-		"compact":    []string{"1"},
-		"left":       []string{"0"},
-	}
-	base.RawQuery = params.Encode()
+    req := api.AnnounceRequest{
+        InfoHash:   string(t.InfoHash[:]),
+        PeerID:     string(s.PeerID[:]),
+        Port:       s.Port,
+        Uploaded:   0,
+        Downloaded: int(t.Length),
+        Left:       0,
+        Event:      "started",
+    }
+	base.RawQuery = req.ToUrlValues().Encode()
 	trackerUrl := base.String()
 
 	resp, err := http.Get(trackerUrl)
