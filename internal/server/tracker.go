@@ -1,10 +1,11 @@
 package server
 
 import (
-	"bytes"
+	"context"
 	"errors"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/chezzijr/p2p/internal/common/api"
@@ -19,45 +20,42 @@ var (
 )
 
 type Tracker interface {
-	AddPeer(infoHash [20]byte, peer peers.Peer) error
-	GetPeers(infoHash [20]byte) []peers.Peer
+	AddPeer(ctx context.Context, infoHash [20]byte, peer peers.Peer) error
+	GetPeers(ctx context.Context, infoHash [20]byte) ([]peers.Peer, error)
 	AnnounceHandler(c *fiber.Ctx) error
 }
 
 // Stores the peers that are connecting to the server
 type tracker struct {
-	infoHashesToPeer map[string][]peers.Peer
-	interval         time.Duration
+    interval          time.Duration
 	redis            database.Redis
 }
 
 func NewTrackerServer(redis database.Redis) Tracker {
 	return &tracker{
-		infoHashesToPeer: make(map[string][]peers.Peer),
-		redis:            redis,
         interval:         time.Minute * 15,
+		redis:            redis,
 	}
 }
 
-func (t *tracker) AddPeer(infoHash [20]byte, peer peers.Peer) error {
-	// check if the peer is already in the tracker
-	key := string(infoHash[:])
-	for _, p := range t.infoHashesToPeer[key] {
-		if bytes.Equal(p.Ip, peer.Ip) && p.Port == peer.Port {
-			return ErrAlreadyExists
-		}
-	}
-	t.infoHashesToPeer[key] = append(t.infoHashesToPeer[key], peer)
-	return nil
+func (t *tracker) AddPeer(ctx context.Context, infoHash [20]byte, peer peers.Peer) error {
+    key := string(infoHash[:])
+    value := string(peers.Marshal(peer))
+
+    err := t.redis.AddOrUpdateTTL(ctx, key, value, t.interval)
+    return err
 }
 
-func (t *tracker) GetPeers(infoHash [20]byte) []peers.Peer {
-	key := string(infoHash[:])
-	connectingPeers, ok := t.infoHashesToPeer[key]
-	if !ok {
-		return []peers.Peer{}
-	}
-	return connectingPeers
+func (t *tracker) GetPeers(ctx context.Context, infoHash [20]byte) ([]peers.Peer, error) {
+    key := string(infoHash[:])
+    value, err := t.redis.GetAll(ctx, key)
+    if err != nil {
+        return nil, err
+    }
+    // concatenate string with no delimiter
+    concat := strings.Join(value, "")
+
+    return peers.Unmarshal([]byte(concat))
 }
 
 func (t *tracker) AnnounceHandler(c *fiber.Ctx) error {
@@ -79,13 +77,24 @@ func (t *tracker) AnnounceHandler(c *fiber.Ctx) error {
 		Port: uint16(req.Port),
 	}
 
-	connectingPeers := t.GetPeers(infoHash)
+	connectingPeers, err := t.GetPeers(context.Background(), infoHash)
+    if err != nil {
+        return err
+    }
 
 	peerBytes := peers.Marshal(connectingPeers...)
 
-	t.AddPeer(infoHash, peer)
+    // check if req.event equals "started", or "completed"
+    if req.Event == "started" || req.Event == "completed" {
+        err := t.AddPeer(context.Background(), infoHash, peer)
+        if err != nil {
+            slog.Error("Error adding peer", "error", err)
+        }
+    } else if req.Event == "stopped" {
+        // remove the peer from the tracker
+    }
 
-	err := bencode.Marshal(c, api.AnnounceResponse{
+	err = bencode.Marshal(c, api.AnnounceResponse{
 		Interval: time.Minute * 15,
 		Peers:    string(peerBytes),
 	})
