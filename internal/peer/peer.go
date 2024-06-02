@@ -23,7 +23,7 @@ type Peer struct {
 	// used to seed to server for other peers to download
 	// must have the files
 	Torrents []*torrent.TorrentFile
-
+    config *Config
 	StopServer chan struct{}
 }
 
@@ -35,11 +35,16 @@ func NewPeer(port uint16) (*Peer, error) {
 	}
 
 	slog.Info("Joining the network", "peerID", peerID, "port", port)
+    cfg, err := LoadConfig()
+    if err != nil {
+        return nil, err
+    }
 
 	return &Peer{
 		PeerID:     peerID,
 		Port:       port,
 		Torrents:   make([]*torrent.TorrentFile, 0),
+        config:     cfg,
 		StopServer: make(chan struct{}, 1),
 	}, nil
 }
