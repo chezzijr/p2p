@@ -91,3 +91,8 @@ func (t *TorrentFile) toTorrentBencode() torrentBencode {
 		},
 	}
 }
+
+// utility functions
+func (t *TorrentFile) NumPieces() int {
+    return len(t.PieceHashes)
+}

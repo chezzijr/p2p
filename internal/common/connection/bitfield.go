@@ -19,3 +19,7 @@ func (bf BitField) SetPiece(index int) {
     }
     bf[byteIndex] |= 1 << uint(7 - offset)
 }
+
+func NewBitField(size int) BitField {
+    return make(BitField, (size+7)/8)
+}

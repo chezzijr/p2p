@@ -24,6 +24,7 @@ var (
 type DownloadSession struct {
 	peerID [20]byte
 	peers  []peers.Peer
+    bitfield connection.BitField
 	*torrent.TorrentFile
 }
 
@@ -31,6 +32,7 @@ func NewDownloadSession(peerID [20]byte, peers []peers.Peer, tf *torrent.Torrent
 	return &DownloadSession{
 		peerID:      peerID,
 		peers:       peers,
+        bitfield:    connection.NewBitField(tf.NumPieces()),
 		TorrentFile: tf,
 	}
 }
@@ -211,6 +213,8 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 		begin, end := ts.getPieceBoundAt(res.index)
 		copy(buf[begin:end], res.buf)
 		donePieces++
+
+        ts.bitfield.SetPiece(res.index)
 
 		// update progress to tracker server
 	}

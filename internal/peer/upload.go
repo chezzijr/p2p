@@ -217,7 +217,7 @@ func (s *Peer) handleConn(conn net.Conn) error {
 		return err
 	}
 
-	pieces := make([][]byte, len(t.PieceHashes))
+	pieces := make([][]byte, t.NumPieces())
 	for i := 0; i < len(t.PieceHashes); i++ {
 		begin := int64(i) * int64(t.PieceLength)
 		end := min(begin+int64(t.PieceLength), fileStat.Size())
