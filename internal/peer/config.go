@@ -46,15 +46,18 @@ func CreateDefaultConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-    configPath := path.Join(configDir, AppName, "config.json")
+    configDir = path.Join(configDir, AppName)
+    configPath := path.Join(configDir, "config.json")
 
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return nil, err
 	}
-    cachePath := path.Join(cacheDir, AppName, "cache.json")
+    cacheDir = path.Join(cacheDir, AppName)
+    cachePath := path.Join(cacheDir, "cache.json")
 
-    logPath := path.Join(configDir, "log", "log.txt")
+    logDir := path.Join(configDir, "log")
+    logPath := path.Join(logDir, "log.txt")
 
     defaultConfig := &Config{
         CachePath:        cachePath,
@@ -62,10 +65,46 @@ func CreateDefaultConfig() (*Config, error) {
         DefaultBlockSize: 1024,
     }
 
+    // create config directory
+    err = os.MkdirAll(path.Dir(configPath), os.ModePerm)
+    if err != nil {
+        return nil, err
+    }
+
+    // save default config
     err = defaultConfig.Save(configPath)
     if err != nil {
         return nil, err
     }
+
+    // create cache directory
+    err = os.MkdirAll(path.Dir(cachePath), os.ModePerm)
+    if err != nil {
+        return nil, err
+    }
+    // create cache file
+    cacheFile, err := os.Create(cachePath)
+    if err != nil {
+        return nil, err
+    }
+    defer cacheFile.Close()
+
+    err = json.NewEncoder(cacheFile).Encode([]string{})
+    if err != nil {
+        return nil, err
+    }
+
+    // create log directory
+    err = os.MkdirAll(path.Dir(logPath), os.ModePerm)
+    if err != nil {
+        return nil, err
+    }
+    // create log file
+    logFile, err := os.Create(logPath)
+    if err != nil {
+        return nil, err
+    }
+    defer logFile.Close()
 
     return defaultConfig, nil
 }
