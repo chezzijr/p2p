@@ -96,6 +96,9 @@ func (s *Peer) Download(t *torrent.TorrentFile, filepath string) error {
 
 	slog.Info("Downloading", "torrent", t.Name)
 	session := NewDownloadSession(s.PeerID, peers, t)
+
+    // we temporarily save the whole file in memory
+    //! TODO: save to disk when each piece is downloaded
 	buf, err := session.Download()
 	if err != nil {
 		slog.Error("Failed to download", "error", err)
