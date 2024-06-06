@@ -7,14 +7,20 @@ import (
 	"github.com/jackpal/bencode-go"
 )
 
+type Sha1Hash [sha1.Size]byte
+
+func (h Sha1Hash) String() string {
+    return string(h[:])
+}
+
 var (
 	ErrMalformedPieces = errors.New("Received malformed pieces")
 )
 
 type TorrentFile struct {
 	Announce    string            `json:"announce"`
-	InfoHash    [sha1.Size]byte   `json:"info_hash"`
-	PieceHashes [][sha1.Size]byte `json:"piece_hashes"`
+	InfoHash    Sha1Hash          `json:"info_hash"`
+	PieceHashes []Sha1Hash `json:"piece_hashes"`
 	PieceLength int               `json:"piece_length"`
 	Length      int               `json:"length"`
 	Name        string            `json:"name"`
@@ -41,14 +47,14 @@ func (info *torrentBencodeInfo) hash() ([sha1.Size]byte, error) {
 	return sha1.Sum(buf.Bytes()), nil
 }
 
-func (info *torrentBencodeInfo) splitPieceHashes() ([][sha1.Size]byte, error) {
+func (info *torrentBencodeInfo) splitPieceHashes() ([]Sha1Hash, error) {
 	hashLen := sha1.Size // default length of sha1 hash in bytes
 	buf := []byte(info.Pieces)
 	if len(buf)%hashLen != 0 {
 		return nil, ErrMalformedPieces
 	}
 	numHashes := len(buf) / hashLen
-	hashes := make([][sha1.Size]byte, numHashes)
+	hashes := make([]Sha1Hash, numHashes)
 
 	for i := 0; i < numHashes; i++ {
 		copy(hashes[i][:], buf[i*hashLen:(i+1)*hashLen])
@@ -94,5 +100,5 @@ func (t *TorrentFile) toTorrentBencode() torrentBencode {
 
 // utility functions
 func (t *TorrentFile) NumPieces() int {
-    return len(t.PieceHashes)
+	return len(t.PieceHashes)
 }
