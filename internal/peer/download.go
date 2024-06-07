@@ -22,19 +22,10 @@ var (
 
 // for peer to download from other peers
 type DownloadSession struct {
-	peerID [20]byte
-	peers  []peers.Peer
-    bitfield connection.BitField
+    *Peer
 	*torrent.TorrentFile
-}
-
-func NewDownloadSession(peerID [20]byte, peers []peers.Peer, tf *torrent.TorrentFile) *DownloadSession {
-	return &DownloadSession{
-		peerID:      peerID,
-		peers:       peers,
-        bitfield:    connection.NewBitField(tf.NumPieces()),
-		TorrentFile: tf,
-	}
+	peers    []peers.Peer
+	bitfield connection.BitField
 }
 
 type pieceInfo struct {
@@ -115,7 +106,7 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 			for session.backlog < MaxBacklog && session.requested < pi.length {
 				blockSize := MaxBlockSize
 				// Last block might be shorter than the typical block
-				if pi.length - session.requested < blockSize {
+				if pi.length-session.requested < blockSize {
 					blockSize = pi.length - session.requested
 				}
 
@@ -139,7 +130,7 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 }
 
 func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
-	c, err := NewClient(peer, ts.peerID, ts.InfoHash)
+	c, err := NewClient(peer, ts.PeerID, ts.InfoHash)
 	if err != nil {
 		return
 	}
@@ -183,11 +174,11 @@ func (ts *DownloadSession) getPieceBoundAt(index int) (int, int) {
 	return begin, end
 }
 
-func (ts *DownloadSession) Download() ([]byte, error) {
-	piecesQueue := make(chan *pieceInfo, len(ts.PieceHashes))
+func (ts *DownloadSession) Download(filepath string) ([]byte, error) {
+	piecesQueue := make(chan *pieceInfo, ts.NumPieces())
 	defer close(piecesQueue)
 
-	resultsQueue := make(chan *pieceResult)
+	resultsQueue := make(chan *pieceResult, ts.NumPieces())
 	defer close(resultsQueue)
 
 	for i, hash := range ts.PieceHashes {
@@ -214,7 +205,7 @@ func (ts *DownloadSession) Download() ([]byte, error) {
 		copy(buf[begin:end], res.buf)
 		donePieces++
 
-        ts.bitfield.SetPiece(res.index)
+		ts.bitfield.SetPiece(res.index)
 
 		// update progress to tracker server
 	}
