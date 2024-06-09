@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net"
 	"os"
 	"time"
 
@@ -36,26 +38,24 @@ func NewRedis() (Redis, error) {
 		return redisInstance, nil
 	}
 
-	connStr := fmt.Sprintf("redis://%s:%s@%s:%s/%s", redisUsername, redisPassword, redisHost, redisPort, redisDatabase)
-	opt, err := redis.ParseURL(connStr)
-	if err != nil {
-		return nil, err
-	}
-
-	client := redis.NewClient(opt)
+    rdb := redis.NewClient(&redis.Options{
+        Addr:     net.JoinHostPort(redisHost, redisPort),
+        Password: redisPassword,
+        DB:       0,
+    })
 	redisInstance = &redisConn{
-		client: client,
+		client: rdb,
 	}
 
     // run remove expired keys every 5 minutes
     go func() {
         for {
+            time.Sleep(5 * time.Minute)
             ctx := context.Background()
             err := redisInstance.RemoveExpired(ctx)
             if err != nil {
                 fmt.Println("Error removing expired keys", err)
             }
-            time.Sleep(5 * time.Minute)
         }
     }()
 
@@ -63,15 +63,8 @@ func NewRedis() (Redis, error) {
 }
 
 func (r* redisConn) AddOrUpdateTTL(ctx context.Context, key string, value string, ttl time.Duration) error {
-	script := redis.NewScript(`
-        local key = KEYS[1]
-        local element = ARGV[1]
-        local ttl = tonumber(ARGV[2])
-        local currentTime = tonumber(redis.call('TIME')[1])
-        local expireTime = currentTime + ttl
-        redis.call('ZADD', key, expireTime, element)
-    `)
-	_, err := script.Run(ctx, r.client, []string{key}, value, uint64(ttl)).Result()
+    val, err := r.client.ZAdd(ctx, key, redis.Z{Score: float64(time.Now().Add(ttl).Unix()), Member: value}).Result()
+    slog.Info("AddOrUpdateTTL", "val", val, "err", err)
 	return err
 }
 
@@ -86,13 +79,17 @@ func (r* redisConn) Remove(ctx context.Context, key string, value string) error 
 }
 
 func (r* redisConn) RemoveExpired(ctx context.Context) error {
-	script := redis.NewScript(`
-        local keys = redis.call('KEYS', "*")
-        local currentTime = tonumber(redis.call('TIME')[1])
-        for i, key in ipairs(keys) do
-            redis.call('ZREMRANGEBYSCORE', key, '-inf', currentTime)
-        end
-   `)
-	_, err := script.Run(ctx, redisInstance.client, []string{}).Result()
+    cmds, err := r.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+        keys, _, err := r.client.Scan(ctx, 0, "*", 0).Result()
+        if err != nil {
+            return err
+        }
+        for _, key := range keys {
+            currentTime := time.Now().Unix()
+            pipe.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", currentTime))
+        }
+        return nil
+    })
+    slog.Info("RemoveExpired", "cmds", cmds, "err", err)
 	return err
 }
