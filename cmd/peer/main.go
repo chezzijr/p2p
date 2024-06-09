@@ -1,10 +1,11 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"flag"
-	"io"
 	"log/slog"
+	"os"
+	"os/signal"
 
 	"github.com/chezzijr/p2p/internal/common/torrent"
 	"github.com/chezzijr/p2p/internal/peer"
@@ -14,6 +15,8 @@ var (
 	port            = flag.Uint("port", 1234, "port to listen on")
 	seedingTorrent  = flag.String("seed", "", "torrent file to seed")
 	downloadTorrent = flag.String("download", "", "torrent file to leech")
+	trackerURL      = flag.String("tracker", "http://localhost:8080/announce", "tracker URL")
+	file            = flag.String("file", "", "file to create torrent from")
 )
 
 func main() {
@@ -27,8 +30,19 @@ func main() {
 	// get first argument
 	cmd := flag.Arg(0)
 	switch cmd {
-	case "search":
+	case "list":
 		slog.Info("Searching for torrents")
+	case "create":
+		if *file == "" {
+			slog.Error("No file provided")
+			return
+		}
+		slog.Info("Creating torrent")
+		ut, err := torrent.GenerateTorrentFromSingleFile(*file, *trackerURL, 1024)
+		if err != nil {
+			panic(err)
+		}
+		ut.Save(ut.Name + ".torrent")
 
 	case "run":
 		p, err := peer.NewPeer(uint16(*port))
@@ -36,9 +50,10 @@ func main() {
 			panic(err)
 		}
 
+
 		if *seedingTorrent != "" {
 			filename := *seedingTorrent
-			ut, err := torrent.GenerateTorrentFromSingleFile(filename, "http://localhost:8081/announce", 1024)
+			ut, err := torrent.GenerateTorrentFromSingleFile(filename, *trackerURL, 1024)
 			if err != nil {
 				panic(err)
 			}
@@ -48,8 +63,10 @@ func main() {
 				panic(err)
 			}
 
-			slog.Info("Seeding", "torrent", ut.Name)
-			p.AddTorrent(ut)
+			p.RegisterEvent(&peer.EventUpload{
+				FilePath:    filename,
+				TorrentPath: ut.Name + ".torrent",
+			})
 		}
 
 		if *downloadTorrent != "" {
@@ -59,23 +76,25 @@ func main() {
 			}
 
 			slog.Info("Downloading", "torrent", dt.Name)
-			go func() {
-				err = p.Download(dt, "tests")
-				if err != nil {
-					panic(err)
-				}
-			}()
+            p.RegisterEvent(&peer.EventDownload{
+                DownloadPath: "tests/",
+                TorrentPath: *downloadTorrent,
+            })
 		}
 
 		slog.Info("Listening", "port", *port)
 
-		err = p.RunServer()
+        ctx, cancel := context.WithCancel(context.Background())
+		err = p.Run(ctx)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				slog.Info("Connection closed unexpectedly")
-			} else {
-				slog.Error("Error", "error", err)
-			}
+            panic(err)
 		}
+        defer cancel()
+	default:
+		slog.Error("Unknown command")
 	}
+
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt)
+	<-signalChan
 }
