@@ -6,6 +6,7 @@ import (
 	"github.com/chezzijr/p2p/internal/common/torrent"
 )
 
+// This is used so that user can extend the functionality of the peer
 type Event interface {
 	Handle(ctx context.Context, p *Peer) error
 }
@@ -20,7 +21,7 @@ func (e *EventDownload) Handle(ctx context.Context, p *Peer) error {
 	if err != nil {
 		return err
 	}
-	return p.Download(ctx, tf, e.DownloadPath)
+	return p.download(ctx, tf, e.DownloadPath)
 }
 
 type EventUpload struct {

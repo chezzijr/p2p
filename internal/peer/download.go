@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha1"
 	"errors"
+	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -32,6 +34,75 @@ type DownloadSession struct {
 	peers    []peers.Peer
 	bitfield connection.BitField
 	done     bool
+}
+
+func (p *Peer) NewDownloadSession(t *torrent.TorrentFile, filepath string) (*DownloadSession, error) {
+    if _, ok := p.downloadingPeers[t.InfoHash.String()]; ok {
+        return nil, fmt.Errorf("Already downloading")
+    }
+
+    // get initial peers
+    initialPeers, err := t.RequestPeers(p.PeerID, p.Port)
+    if err != nil {
+        return nil, err
+    }
+
+    if len(initialPeers) == 0 {
+        return nil, fmt.Errorf("No peers available")
+    }
+
+    if cache, ok := p.cache[t.InfoHash.String()]; ok {
+        // resume download
+        filename := cache.Filepath
+        fd, err := os.OpenFile(filename, os.O_RDWR, os.ModePerm)
+        if err != nil {
+            return nil, err
+        }
+
+        session := &DownloadSession{
+            TorrentFile: t,
+            peerInfo: p,
+            fd: fd,
+            filepath: cache.Filepath,
+            bitfield: cache.Bitfield,
+            peers: initialPeers,
+            done: false,
+        }
+        p.downloadingPeers[t.InfoHash.String()] = session
+        return session, nil
+    } else {
+        cache := &CachedFile{
+            Filepath: path.Join(filepath, t.Name + ".tmp"),
+            InfoHash: t.InfoHash.String(),
+            Bitfield: connection.NewBitField(t.NumPieces()),
+        }
+        p.cache[t.InfoHash.String()] = cache
+        // create file
+        filename := cache.Filepath
+        err := os.MkdirAll(filepath, os.ModePerm)
+        if err != nil {
+            return nil, err
+        }
+        fd, err := os.Create(filename)
+        if err != nil {
+            return nil, err
+        }
+
+        // if not exist then empty bitfield
+        bitfield := connection.NewBitField(t.NumPieces())
+
+        session := &DownloadSession{
+            TorrentFile: t,
+            peerInfo: p,
+            fd: fd,
+            filepath: cache.Filepath,
+            bitfield: bitfield,
+            peers: initialPeers,
+            done: false,
+        }
+        p.downloadingPeers[t.InfoHash.String()] = session
+        return session, nil
+    }
 }
 
 type pieceInfo struct {
