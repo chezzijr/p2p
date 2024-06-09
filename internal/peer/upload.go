@@ -1,7 +1,6 @@
 package peer
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
 	"errors"
@@ -33,7 +32,7 @@ type UploadSession struct {
 	// used to timeout connection
 }
 
-func (s *Peer) respondHandshake(conn net.Conn) (*torrent.TorrentFile, error) {
+func (p *Peer) respondHandshake(conn net.Conn) (*torrent.TorrentFile, error) {
 	// handshake
 	req, err := connection.ReadHandshake(conn)
 	if err != nil {
@@ -41,23 +40,17 @@ func (s *Peer) respondHandshake(conn net.Conn) (*torrent.TorrentFile, error) {
 	}
 
 	// find corresponding torrent file
-	var t *torrent.TorrentFile
-	for _, torrent := range s.Torrents {
-		if bytes.Equal(req.InfoHash[:], torrent.InfoHash[:]) {
-			t = torrent
-			break
-		}
-	}
+    t, ok := p.seedingTorrents[string(req.InfoHash[:])]
 
 	// if the torrent file is not found, reject the connection
 	var infoHash [20]byte
-	if t == nil || !bytes.Equal(req.InfoHash[:], t.InfoHash[:]) {
+	if !ok {
 		infoHash = sha1.Sum([]byte("invalid infohash"))
 	} else {
 		infoHash = t.InfoHash
 	}
 
-	res := connection.NewHandshake(infoHash, s.PeerID)
+	res := connection.NewHandshake(infoHash, p.PeerID)
 	_, err = conn.Write(res.Serialize())
 	if err != nil {
 		return nil, err
@@ -70,16 +63,16 @@ func (s *Peer) respondHandshake(conn net.Conn) (*torrent.TorrentFile, error) {
 	return t, nil
 }
 
-func (ds *UploadSession) sendBitfield(conn net.Conn) error {
+func (us *UploadSession) sendBitfield(conn net.Conn) error {
 	// bitfield
-	bufLen := len(ds.t.PieceHashes)/8 + 1
+	bufLen := len(us.t.PieceHashes)/8 + 1
 	// create a bitfield with all pieces set to 1
 	// because we have all pieces
 	bf := make([]byte, bufLen)
 	for i := range bf {
 		bf[i] = 0xff
 	}
-	offset := len(ds.t.PieceHashes) % 8
+	offset := len(us.t.PieceHashes) % 8
 	bf[bufLen-1] = (0xff >> uint8(7-offset)) << uint8(7-offset)
 
 	msg := &connection.Message{
@@ -94,12 +87,12 @@ func (ds *UploadSession) sendBitfield(conn net.Conn) error {
 	return nil
 }
 
-func (session *UploadSession) getPiece(index, begin, length uint32) ([]byte, error) {
-	if index >= uint32(len(session.pieces)) {
+func (us *UploadSession) getPiece(index, begin, length uint32) ([]byte, error) {
+	if index >= uint32(len(us.pieces)) {
 		return nil, ErrOutOfBound
 	}
 
-	if begin+length > uint32(len(session.pieces[index])) {
+	if begin+length > uint32(len(us.pieces[index])) {
 		return nil, ErrOutOfBound
 	}
 
@@ -108,7 +101,7 @@ func (session *UploadSession) getPiece(index, begin, length uint32) ([]byte, err
 	binary.BigEndian.PutUint32(buf[0:4], index)
 	binary.BigEndian.PutUint32(buf[4:8], begin)
 
-	copy(buf[8:], session.pieces[index][begin:begin+length])
+	copy(buf[8:], us.pieces[index][begin:begin+length])
 	return buf, nil
 }
 
@@ -181,11 +174,11 @@ func (session *UploadSession) uploadToPeer() error {
 	}
 }
 
-func (session *UploadSession) sendUnchoke() error {
+func (us *UploadSession) sendUnchoke() error {
     msg := &connection.Message{
         ID: connection.MsgUnchoke,
     }
-    _, err := session.conn.Write(msg.Serialize())
+    _, err := us.conn.Write(msg.Serialize())
     return err
 }
 
@@ -193,13 +186,13 @@ func (session *UploadSession) readMessage() (*connection.Message, error) {
 	return connection.ReadMsg(session.conn)
 }
 
-func (s *Peer) handleConn(conn net.Conn) error {
+func (p *Peer) handleConn(conn net.Conn) error {
 	defer conn.Close()
 
 	// handshake on a torrent file
 	// if the torrent file is not found, reject the connection
 	slog.Info("Respond to handshake")
-	t, err := s.respondHandshake(conn)
+	t, err := p.respondHandshake(conn)
 	if err != nil {
 		slog.Error("Failed to respond to handshake", "error", err)
 		return err
@@ -229,14 +222,14 @@ func (s *Peer) handleConn(conn net.Conn) error {
 		}
 	}
 
-	ds := &UploadSession{
+	us := &UploadSession{
 		conn:       conn,
 		t:          t,
-		peerID:     s.PeerID,
+		peerID:     p.PeerID,
 		pieces:     pieces,
 		choked:     true,
 		interested: false,
 	}
 
-	return ds.uploadToPeer()
+	return us.uploadToPeer()
 }

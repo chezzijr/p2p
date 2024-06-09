@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 
 type Peer struct {
 	config           *Config
+    cache            CachedFilesMap
 	events           chan Event
 	connectingPeers  map[string]net.Conn
 	downloadingPeers map[string]*DownloadSession
@@ -27,10 +29,6 @@ type Peer struct {
 
 	PeerID [20]byte
 	Port   uint16
-	// used to seed to server for other peers to download
-	// must have the files
-	Torrents   []*torrent.TorrentFile
-	StopServer chan struct{}
 }
 
 func NewPeer(port uint16) (*Peer, error) {
@@ -46,73 +44,49 @@ func NewPeer(port uint16) (*Peer, error) {
 		return nil, err
 	}
 
+    cache, err := LoadCache(cfg.CachePath)
+    if err != nil {
+        return nil, err
+    }
+
 	return &Peer{
 		config:           cfg,
-		events:           make(chan Event),
+        cache:            cache,
+		events:           make(chan Event, 10),
 		connectingPeers:  make(map[string]net.Conn),
 		downloadingPeers: make(map[string]*DownloadSession),
 		uploadingPeers:   make(map[string]*UploadSession),
+        seedingTorrents:  make(map[string]*torrent.TorrentFile),
 		PeerID:           peerID,
 		Port:             port,
-		Torrents:         make([]*torrent.TorrentFile, 0),
-		StopServer:       make(chan struct{}, 1),
 	}, nil
 }
 
-func (s *Peer) AddTorrent(t ...*torrent.TorrentFile) {
-	s.Torrents = append(s.Torrents, t...)
-}
 
-func (s *Peer) RunServer() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.Port))
-	if err != nil {
-		return err
-	}
-	defer lis.Close()
-
-	go func() {
-		for {
-			for _, t := range s.Torrents {
-				s.Seed(t)
-			}
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
-	slog.Info("Start accepting connections", "port", s.Port)
-	for {
-		conn, err := lis.Accept()
-		if err != nil {
-			slog.Error("Failed to accept connection", "error", err)
-			return err
-		}
-
-		go s.handleConn(conn)
-	}
-}
-
-func (p *Peer) Download(t *torrent.TorrentFile, filepath string) error {
-    session, err := p.NewUploadSession(t, filepath)
+// Write downloaded data to file.ext.tmp, where file.ext is the file name
+// When finished, rename file.ext.tmp to file.ext
+// This function is a goroutine
+func (p *Peer) Download(ctx context.Context, t *torrent.TorrentFile, filepath string) error {
+    session, err := p.NewDownloadSession(t, filepath)
+    if err != nil {
+        return err
+    }
+    defer session.Close()
 
 	// we temporarily save the whole file in memory
 	//! TODO: save to disk when each piece is downloaded
-	buf, err := session.Download(filepath)
+    // temporary context
+	err = session.Download(ctx, filepath)
 	if err != nil {
 		slog.Error("Failed to download", "error", err)
 		return err
 	}
 
-	f, err := os.Create(path.Join(filepath, t.Name))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.Write(buf)
-	return err
+	return nil
 }
 
 func (s *Peer) Seed(t *torrent.TorrentFile) (*api.AnnounceResponse, error) {
+    slog.Info("Seeding", "url", t.Announce)
 	base, err := url.Parse(t.Announce)
 	if err != nil {
 		return nil, err
@@ -135,6 +109,10 @@ func (s *Peer) Seed(t *torrent.TorrentFile) (*api.AnnounceResponse, error) {
 	}
 	defer resp.Body.Close()
 
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("Failed to seed: %s", resp.Status)
+    }
+
 	var respBody api.AnnounceResponse
 	err = bencode.Unmarshal(resp.Body, &respBody)
 	if err != nil {
@@ -147,7 +125,7 @@ func (s *Peer) Seed(t *torrent.TorrentFile) (*api.AnnounceResponse, error) {
 }
 
 // New event-driven architecture
-func (p *Peer) seedTorrent(tf *torrent.TorrentFile) error {
+func (p *Peer) seedTorrent(ctx context.Context, tf *torrent.TorrentFile) error {
 	p.seedingTorrents[tf.InfoHash.String()] = tf
 	defer delete(p.seedingTorrents, tf.InfoHash.String())
 
@@ -160,8 +138,8 @@ func (p *Peer) seedTorrent(tf *torrent.TorrentFile) error {
 
 	for {
 		select {
-		case <-p.StopServer:
-			return nil
+        case <-ctx.Done():
+            return nil
 		case <-time.After(interval):
 			resp, err = p.Seed(tf)
 			if err != nil {
@@ -171,24 +149,63 @@ func (p *Peer) seedTorrent(tf *torrent.TorrentFile) error {
 	}
 }
 
+// Control the peer
 func (p *Peer) RegisterEvent(e Event) {
 	p.events <- e
 }
 
-func (p *Peer) Run() {
+func (p *Peer) Run(ctx context.Context) error {
     //! TODO: Initialize server
+    var lc net.ListenConfig
+    lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", p.Port))
+    if err != nil {
+        return err
+    }
+    defer lis.Close()
+
+    go func(listener net.Listener) {
+        for {
+            conn, err := listener.Accept()
+            if err != nil {
+                slog.Error("Failed to accept connection", "error", err)
+                continue
+            }
+            go p.handleConn(conn)
+        }
+    }(lis)
 
 	// Waiting for events
-	for e := range p.events {
-		e.Consume(p)
-	}
+    for {
+        select {
+        case <-ctx.Done():
+            return nil
+        case e := <-p.events:
+            go func() {
+                err := e.Handle(ctx, p)
+                if err != nil {
+                    slog.Error("Failed to handle event", "error", err)
+                }
+            }()
+        }
+    }
 }
 
 // graceful shutdown
-func (p *Peer) Stop() {
+func (p *Peer) Close() {
+    for _, session := range p.downloadingPeers {
+        session.Close()
+    }
+    // save cache
+    p.cache.SaveCache(p.config.CachePath)
 }
 
-func (p *Peer) NewUploadSession(t *torrent.TorrentFile, path string) (*DownloadSession, error) {
+// Session management
+func (p *Peer) NewDownloadSession(t *torrent.TorrentFile, filepath string) (*DownloadSession, error) {
+    if _, ok := p.downloadingPeers[t.InfoHash.String()]; ok {
+        return nil, fmt.Errorf("Already downloading")
+    }
+
+    // get initial peers
     initialPeers, err := t.RequestPeers(p.PeerID, p.Port)
     if err != nil {
         return nil, err
@@ -198,16 +215,56 @@ func (p *Peer) NewUploadSession(t *torrent.TorrentFile, path string) (*DownloadS
         return nil, fmt.Errorf("No peers available")
     }
 
-    //! TODO: load bitfield from cache
-    // if not exist then empty bitfield
-    bitfield := connection.NewBitField(t.NumPieces())
+    if cache, ok := p.cache[t.InfoHash.String()]; ok {
+        // resume download
+        filename := cache.Filepath
+        fd, err := os.OpenFile(filename, os.O_RDWR, os.ModePerm)
+        if err != nil {
+            return nil, err
+        }
 
-    session := &DownloadSession{
-        Peer: p,
-        TorrentFile: t,
-        bitfield: bitfield,
-        peers: initialPeers,
+        session := &DownloadSession{
+            TorrentFile: t,
+            peerInfo: p,
+            fd: fd,
+            filepath: cache.Filepath,
+            bitfield: cache.Bitfield,
+            peers: initialPeers,
+            done: false,
+        }
+        p.downloadingPeers[t.InfoHash.String()] = session
+        return session, nil
+    } else {
+        cache := &CachedFile{
+            Filepath: path.Join(filepath, t.Name + ".tmp"),
+            InfoHash: t.InfoHash.String(),
+            Bitfield: connection.NewBitField(t.NumPieces()),
+        }
+        p.cache[t.InfoHash.String()] = cache
+        // create file
+        filename := cache.Filepath
+        err := os.MkdirAll(filepath, os.ModePerm)
+        if err != nil {
+            return nil, err
+        }
+        fd, err := os.Create(filename)
+        if err != nil {
+            return nil, err
+        }
+
+        // if not exist then empty bitfield
+        bitfield := connection.NewBitField(t.NumPieces())
+
+        session := &DownloadSession{
+            TorrentFile: t,
+            peerInfo: p,
+            fd: fd,
+            filepath: cache.Filepath,
+            bitfield: bitfield,
+            peers: initialPeers,
+            done: false,
+        }
+        p.downloadingPeers[t.InfoHash.String()] = session
+        return session, nil
     }
-    return session, nil
 }
-

@@ -2,8 +2,11 @@ package peer
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"errors"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/chezzijr/p2p/internal/common/connection"
@@ -22,10 +25,13 @@ var (
 
 // for peer to download from other peers
 type DownloadSession struct {
-    *Peer
 	*torrent.TorrentFile
+	peerInfo *Peer
+	fd       *os.File
+	filepath string
 	peers    []peers.Peer
 	bitfield connection.BitField
+	done     bool
 }
 
 type pieceInfo struct {
@@ -129,8 +135,8 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 	return session.buf, nil
 }
 
-func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
-	c, err := NewClient(peer, ts.PeerID, ts.InfoHash)
+func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
+	c, err := NewClient(ctx, peer, ds.peerInfo.PeerID, ds.InfoHash)
 	if err != nil {
 		return
 	}
@@ -165,24 +171,29 @@ func (ts *DownloadSession) downloadFromPeer(peer peers.Peer, pQ chan *pieceInfo,
 
 }
 
-func (ts *DownloadSession) getPieceBoundAt(index int) (int, int) {
-	begin := index * ts.PieceLength
-	end := begin + ts.PieceLength
-	if end > ts.Length {
-		end = ts.Length
+func (ds *DownloadSession) getPieceBoundAt(index int) (int, int) {
+	begin := index * ds.PieceLength
+	end := begin + ds.PieceLength
+	if end > ds.Length {
+		end = ds.Length
 	}
 	return begin, end
 }
 
-func (ts *DownloadSession) Download(filepath string) ([]byte, error) {
-	piecesQueue := make(chan *pieceInfo, ts.NumPieces())
+func (ds *DownloadSession) Download(ctx context.Context, filepath string) error {
+	piecesQueue := make(chan *pieceInfo, ds.NumPieces())
 	defer close(piecesQueue)
 
-	resultsQueue := make(chan *pieceResult, ts.NumPieces())
+	resultsQueue := make(chan *pieceResult, ds.NumPieces())
 	defer close(resultsQueue)
 
-	for i, hash := range ts.PieceHashes {
-		begin, end := ts.getPieceBoundAt(i)
+	for i, hash := range ds.PieceHashes {
+		// check if the piece is already downloaded
+		if ds.bitfield.HasPiece(i) {
+			continue
+		}
+
+		begin, end := ds.getPieceBoundAt(i)
 
 		piecesQueue <- &pieceInfo{
 			index:  i,
@@ -192,23 +203,46 @@ func (ts *DownloadSession) Download(filepath string) ([]byte, error) {
 	}
 
 	// start retrieving pieces
-	for _, peer := range ts.peers {
-		go ts.downloadFromPeer(peer, piecesQueue, resultsQueue)
+	for _, peer := range ds.peers {
+		go ds.downloadFromPeer(ctx, peer, piecesQueue, resultsQueue)
 	}
 
 	// assemble pieces
-	buf := make([]byte, ts.Length)
+	// buf := make([]byte, ds.Length)
 	donePieces := 0
-	for donePieces < len(ts.PieceHashes) {
-		res := <-resultsQueue
-		begin, end := ts.getPieceBoundAt(res.index)
-		copy(buf[begin:end], res.buf)
-		donePieces++
+	for donePieces < ds.NumPieces() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			res := <-resultsQueue
+			begin, _ := ds.getPieceBoundAt(res.index)
+			// copy(ds.buf[begin:end], res.buf)
+			_, err := ds.fd.WriteAt(res.buf, int64(begin))
+			if err != nil {
+				return err
+			}
+			donePieces++
 
-		ts.bitfield.SetPiece(res.index)
+			ds.bitfield.SetPiece(res.index)
 
-		// update progress to tracker server
+			// update progress to tracker server
+		}
 	}
+	ds.done = true
 
-	return buf, nil
+	return nil
+}
+
+func (ds *DownloadSession) Close() {
+	ds.fd.Close()
+	if cache, ok := ds.peerInfo.cache[ds.InfoHash.String()]; ok {
+		cache.Bitfield = ds.bitfield
+	}
+    if ds.done {
+        // rename file
+        delete(ds.peerInfo.downloadingPeers, ds.InfoHash.String())
+        filename := strings.TrimSuffix(ds.filepath, ".tmp")
+        os.Rename(ds.filepath, filename)
+    }
 }

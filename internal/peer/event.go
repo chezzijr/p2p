@@ -1,9 +1,13 @@
 package peer
 
-import "github.com/chezzijr/p2p/internal/common/torrent"
+import (
+	"context"
+
+	"github.com/chezzijr/p2p/internal/common/torrent"
+)
 
 type Event interface {
-	Consume(p *Peer) error
+	Handle(ctx context.Context, p *Peer) error
 }
 
 type EventDownload struct {
@@ -11,12 +15,12 @@ type EventDownload struct {
 	TorrentPath  string
 }
 
-func (e *EventDownload) Consume(p *Peer) error {
+func (e *EventDownload) Handle(ctx context.Context, p *Peer) error {
 	tf, err := torrent.Open(e.TorrentPath)
 	if err != nil {
 		return err
 	}
-	return p.Download(tf, e.DownloadPath)
+	return p.Download(ctx, tf, e.DownloadPath)
 }
 
 type EventUpload struct {
@@ -26,11 +30,10 @@ type EventUpload struct {
 	Interval int
 }
 
-func (e *EventUpload) Consume(p *Peer) error {
+func (e *EventUpload) Handle(ctx context.Context, p *Peer) error {
 	tf, err := torrent.Open(e.TorrentPath)
 	if err != nil {
 		return err
 	}
-	p.AddTorrent(tf)
-	return nil
+    return p.seedTorrent(ctx, tf)
 }

@@ -2,12 +2,14 @@ package peer
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log/slog"
 	"net"
+	"time"
+
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/peers"
-	"time"
 )
 
 var (
@@ -26,8 +28,10 @@ type DownloadClient struct {
 	Peer peers.Peer
 }
 
-func NewClient(p peers.Peer, peerID [20]byte, infoHash [20]byte) (*DownloadClient, error) {
-	conn, err := net.Dial("tcp", p.String())
+func NewClient(ctx context.Context, p peers.Peer, peerID [20]byte, infoHash [20]byte) (*DownloadClient, error) {
+	// conn, err := net.Dial("tcp", p.String())
+    var d net.Dialer
+    conn, err := d.DialContext(ctx, "tcp", p.String())
 	if err != nil {
 		return nil, err
 	}
