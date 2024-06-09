@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/chezzijr/p2p/internal/common/api"
@@ -20,16 +19,24 @@ func (t *TorrentFile) buildTrackerUrl(peerID [20]byte, port uint16) (string, err
     if err != nil {
         return "", err
     }
-    params := url.Values{
-        "info_hash":  []string{string(t.InfoHash[:])},
-		"peer_id":    []string{string(peerID[:])},
-		"port":       []string{strconv.Itoa(int(port))},
-		"uploaded":   []string{"0"},
-		"downloaded": []string{"0"},
-		"compact":    []string{"1"},
-		"left":       []string{strconv.Itoa(t.Length)},
+  //   params := url.Values{
+  //       "info_hash":  []string{string(t.InfoHash[:])},
+		// "peer_id":    []string{string(peerID[:])},
+		// "port":       []string{strconv.Itoa(int(port))},
+		// "uploaded":   []string{"0"},
+		// "downloaded": []string{"0"},
+		// "compact":    []string{"1"},
+		// "left":       []string{strconv.Itoa(t.Length)},
+  //   }
+    params := api.AnnounceRequest{
+        InfoHash:  t.InfoHash.String(),
+        PeerID:    string(peerID[:]),
+        Port:      port,
+        Uploaded:  0,
+        Downloaded: 0,
+        Left:      t.Length,
     }
-    base.RawQuery = params.Encode()
+    base.RawQuery = params.ToUrlValues().Encode()
     return base.String(), nil 
 }
 
