@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -57,6 +58,9 @@ func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, 
     }
     defer resp.Body.Close()
 
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("Failed to request peers: %s", resp.Status)
+    }
 
     slog.Info("Received response from tracker", "status", resp.Status)
     var r api.AnnounceResponse
