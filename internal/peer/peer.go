@@ -82,7 +82,7 @@ func (p *Peer) download(ctx context.Context, t *torrent.TorrentFile, filepath st
 	return nil
 }
 
-func (s *Peer) seed(t *torrent.TorrentFile) (*api.AnnounceResponse, error) {
+func (s *Peer) seed(t *torrent.TorrentFile, event api.AnnounceEvent) (*api.AnnounceResponse, error) {
     slog.Info("Seeding", "url", t.Announce)
 	base, err := url.Parse(t.Announce)
 	if err != nil {
@@ -93,9 +93,9 @@ func (s *Peer) seed(t *torrent.TorrentFile) (*api.AnnounceResponse, error) {
 		PeerID:     string(s.PeerID[:]),
 		Port:       s.Port,
 		Uploaded:   0,
-		Downloaded: int(t.Length),
+		Downloaded: int(t.Length), // seed the whole file
 		Left:       0,
-		Event:      "started",
+		Event:      event,
 	}
 	base.RawQuery = req.ToUrlValues().Encode()
 	trackerUrl := base.String()
@@ -126,7 +126,7 @@ func (p *Peer) seedTorrent(ctx context.Context, tf *torrent.TorrentFile) error {
 	p.seedingTorrents[tf.InfoHash.String()] = tf
 	defer delete(p.seedingTorrents, tf.InfoHash.String())
 
-	resp, err := p.seed(tf)
+	resp, err := p.seed(tf, api.Started)
 	if err != nil {
 		return err
 	}
@@ -136,9 +136,10 @@ func (p *Peer) seedTorrent(ctx context.Context, tf *torrent.TorrentFile) error {
 	for {
 		select {
         case <-ctx.Done():
-            return nil
+            _, err = p.seed(tf, api.Stopped)
+            return err
 		case <-time.After(interval):
-			resp, err = p.seed(tf)
+			resp, err = p.seed(tf, api.Started)
 			if err != nil {
 				return err
 			}
