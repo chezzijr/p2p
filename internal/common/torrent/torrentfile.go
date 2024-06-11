@@ -10,7 +10,7 @@ import (
 type Sha1Hash [sha1.Size]byte
 
 func (h Sha1Hash) String() string {
-    return string(h[:])
+	return string(h[:])
 }
 
 var (
@@ -18,12 +18,12 @@ var (
 )
 
 type TorrentFile struct {
-	Announce    string            `json:"announce"`
-	InfoHash    Sha1Hash          `json:"info_hash"`
+	Announce    string     `json:"announce"`
+	InfoHash    Sha1Hash   `json:"info_hash"`
 	PieceHashes []Sha1Hash `json:"piece_hashes"`
-	PieceLength int               `json:"piece_length"`
-	Length      int               `json:"length"`
-	Name        string            `json:"name"`
+	PieceLength int        `json:"piece_length"`
+	Length      int        `json:"length"`
+	Name        string     `json:"name"`
 }
 
 type torrentBencode struct {
@@ -38,11 +38,11 @@ type torrentBencodeInfo struct {
 	Name        string `bencode:"name"`
 }
 
-func (info *torrentBencodeInfo) hash() ([sha1.Size]byte, error) {
+func (info *torrentBencodeInfo) hash() (Sha1Hash, error) {
 	var buf bytes.Buffer
 	err := bencode.Marshal(&buf, *info)
 	if err != nil {
-		return [sha1.Size]byte{}, err
+		return Sha1Hash{}, err
 	}
 	return sha1.Sum(buf.Bytes()), nil
 }
@@ -50,7 +50,7 @@ func (info *torrentBencodeInfo) hash() ([sha1.Size]byte, error) {
 func (info *torrentBencodeInfo) splitPieceHashes() ([]Sha1Hash, error) {
 	hashLen := sha1.Size // default length of sha1 hash in bytes
 	buf := []byte(info.Pieces)
-	if len(buf)%hashLen != 0 {
+	if len(buf) % hashLen != 0 {
 		return nil, ErrMalformedPieces
 	}
 	numHashes := len(buf) / hashLen
