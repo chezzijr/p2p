@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"time"
 
+	"github.com/chezzijr/p2p/internal/common/api"
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/peers"
 	"github.com/chezzijr/p2p/internal/common/torrent"
@@ -30,79 +30,76 @@ type DownloadSession struct {
 	*torrent.TorrentFile
 	peerInfo *Peer
 	fd       *os.File
-	filepath string
 	peers    []peers.Peer
 	bitfield connection.BitField
 	done     bool
 }
 
 func (p *Peer) NewDownloadSession(t *torrent.TorrentFile, filepath string) (*DownloadSession, error) {
-    if _, ok := p.downloadingPeers[t.InfoHash.String()]; ok {
-        return nil, fmt.Errorf("Already downloading")
-    }
+	if _, ok := p.downloadingPeers[t.InfoHash.String()]; ok {
+		return nil, fmt.Errorf("Already downloading")
+	}
 
-    // get initial peers
-    initialPeers, err := t.RequestPeers(p.PeerID, p.Port)
-    if err != nil {
-        return nil, err
-    }
+	// get initial peers
+	initialPeers, err := t.RequestPeers(p.PeerID, p.Port)
+	if err != nil {
+		return nil, err
+	}
 
-    if len(initialPeers) == 0 {
-        return nil, fmt.Errorf("No peers available")
-    }
+	if len(initialPeers) == 0 {
+		return nil, fmt.Errorf("No peers available")
+	}
 
-    if cache, ok := p.cache[t.InfoHash.String()]; ok {
-        // resume download
-        filename := cache.Filepath
-        fd, err := os.OpenFile(filename, os.O_RDWR, os.ModePerm)
-        if err != nil {
-            return nil, err
-        }
+	if cache, ok := p.cache[t.InfoHash.String()]; ok {
+		// resume download
+		filename := cache.Filepath
+		fd, err := os.OpenFile(filename, os.O_RDWR, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
 
-        session := &DownloadSession{
-            TorrentFile: t,
-            peerInfo: p,
-            fd: fd,
-            filepath: cache.Filepath,
-            bitfield: cache.Bitfield,
-            peers: initialPeers,
-            done: false,
-        }
-        p.downloadingPeers[t.InfoHash.String()] = session
-        return session, nil
-    } else {
-        cache := &CachedFile{
-            Filepath: path.Join(filepath, t.Name + ".tmp"),
-            InfoHash: t.InfoHash.String(),
-            Bitfield: connection.NewBitField(t.NumPieces()),
-        }
-        p.cache[t.InfoHash.String()] = cache
-        // create file
-        filename := cache.Filepath
-        err := os.MkdirAll(filepath, os.ModePerm)
-        if err != nil {
-            return nil, err
-        }
-        fd, err := os.Create(filename)
-        if err != nil {
-            return nil, err
-        }
+		session := &DownloadSession{
+			TorrentFile: t,
+			peerInfo:    p,
+			fd:          fd,
+			bitfield:    cache.Bitfield,
+			peers:       initialPeers,
+			done:        false,
+		}
+		p.downloadingPeers[t.InfoHash.String()] = session
+		return session, nil
+	} else {
+		cache := &CachedFile{
+			Filepath: path.Join(filepath, t.Name+".tmp"),
+			InfoHash: t.InfoHash.String(),
+			Bitfield: connection.NewBitField(t.NumPieces()),
+		}
+		p.cache[t.InfoHash.String()] = cache
+		// create file
+		filename := cache.Filepath
+		err := os.MkdirAll(filepath, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+		fd, err := os.Create(filename)
+		if err != nil {
+			return nil, err
+		}
 
-        // if not exist then empty bitfield
-        bitfield := connection.NewBitField(t.NumPieces())
+		// if not exist then empty bitfield
+		bitfield := connection.NewBitField(t.NumPieces())
 
-        session := &DownloadSession{
-            TorrentFile: t,
-            peerInfo: p,
-            fd: fd,
-            filepath: cache.Filepath,
-            bitfield: bitfield,
-            peers: initialPeers,
-            done: false,
-        }
-        p.downloadingPeers[t.InfoHash.String()] = session
-        return session, nil
-    }
+		session := &DownloadSession{
+			TorrentFile: t,
+			peerInfo:    p,
+			fd:          fd,
+			bitfield:    bitfield,
+			peers:       initialPeers,
+			done:        false,
+		}
+		p.downloadingPeers[t.InfoHash.String()] = session
+		return session, nil
+	}
 }
 
 type pieceInfo struct {
@@ -209,7 +206,7 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
 	c, err := NewClient(ctx, peer, ds.peerInfo.PeerID, ds.InfoHash)
 	if err != nil {
-        logger.Error("Failed to create downloading client", "error", err)
+		logger.Error("Failed to create downloading client", "error", err)
 		return
 	}
 
@@ -229,13 +226,13 @@ func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer
 		buf, err := attemptDownloadPiece(c, pi)
 		if err != nil {
 			pQ <- pi
-            logger.Error("Failed to download piece", "error", err)
+			logger.Error("Failed to download piece", "error", err)
 			return
 		}
 
 		if err := checkIntegrity(buf, pi); err != nil {
 			pQ <- pi
-            logger.Error("Integrity check failed", "error", err)
+			logger.Error("Integrity check failed", "error", err)
 			return
 		}
 
@@ -255,6 +252,9 @@ func (ds *DownloadSession) getPieceBoundAt(index int) (int, int) {
 }
 
 func (ds *DownloadSession) Download(ctx context.Context, filepath string) error {
+	numDownloadedPieces := ds.bitfield.NumPieces()
+	ds.peerInfo.updateToTracker(ds.TorrentFile, api.Started, 0, numDownloadedPieces*ds.PieceLength)
+
 	piecesQueue := make(chan *pieceInfo, ds.NumPieces())
 	defer close(piecesQueue)
 
@@ -299,8 +299,6 @@ func (ds *DownloadSession) Download(ctx context.Context, filepath string) error 
 			donePieces++
 
 			ds.bitfield.SetPiece(res.index)
-
-			// update progress to tracker server
 		}
 	}
 	ds.done = true
@@ -313,10 +311,11 @@ func (ds *DownloadSession) Close() {
 	if cache, ok := ds.peerInfo.cache[ds.InfoHash.String()]; ok {
 		cache.Bitfield = ds.bitfield
 	}
-    if ds.done {
-        // rename file
-        delete(ds.peerInfo.downloadingPeers, ds.InfoHash.String())
-        filename := strings.TrimSuffix(ds.filepath, ".tmp")
-        os.Rename(ds.filepath, filename)
-    }
+
+	if ds.done {
+		ds.peerInfo.updateToTracker(ds.TorrentFile, api.Completed, 0, ds.Length)
+	} else {
+		numDownloadedPieces := ds.bitfield.NumPieces()
+		ds.peerInfo.updateToTracker(ds.TorrentFile, api.Stopped, 0, numDownloadedPieces*ds.PieceLength)
+	}
 }
