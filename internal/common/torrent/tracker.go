@@ -2,7 +2,6 @@ package torrent
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -46,12 +45,10 @@ func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, 
     if err != nil {
         return nil, err
     }
-    slog.Info("Build tracker url", "url", trackerUrl)
     client := &http.Client{
         Timeout: 15 * time.Second,
     }
 
-    slog.Info("Requesting peers from tracker", "torrent", t.Name)
     resp, err := client.Get(trackerUrl)
     if err != nil {
         return nil, err
@@ -62,14 +59,11 @@ func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, 
         return nil, fmt.Errorf("Failed to request peers: %s", resp.Status)
     }
 
-    slog.Info("Received response from tracker", "status", resp.Status)
     var r api.AnnounceResponse
     err = bencode.Unmarshal(resp.Body, &r)
     if err != nil {
         return nil, err
     }
-
-    slog.Info("Unmarshalled response", "response", r)
 
     return peers.Unmarshal([]byte(r.Peers))
 }

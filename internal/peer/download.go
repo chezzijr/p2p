@@ -209,6 +209,7 @@ func attemptDownloadPiece(c *DownloadClient, pi *pieceInfo) ([]byte, error) {
 func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer, pQ chan *pieceInfo, rQ chan *pieceResult) {
 	c, err := NewClient(ctx, peer, ds.peerInfo.PeerID, ds.InfoHash)
 	if err != nil {
+        logger.Error("Failed to create downloading client", "error", err)
 		return
 	}
 
@@ -228,11 +229,13 @@ func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer
 		buf, err := attemptDownloadPiece(c, pi)
 		if err != nil {
 			pQ <- pi
+            logger.Error("Failed to download piece", "error", err)
 			return
 		}
 
 		if err := checkIntegrity(buf, pi); err != nil {
 			pQ <- pi
+            logger.Error("Integrity check failed", "error", err)
 			return
 		}
 

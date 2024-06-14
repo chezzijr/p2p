@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"io"
-	"log/slog"
 	"os"
 
 	"github.com/jackpal/bencode-go"
@@ -109,11 +108,9 @@ func GenerateTorrentFromSingleFile(filePath, trackerUrl string, pieceLength int)
 		if err != nil {
 			return nil, err
 		}
-        slog.Info("Read piece", "bytes" , buf[:], "index", i)
 
 		pieceHash := sha1.Sum(buf)
 		pieceHashes[i] = pieceHash
-        slog.Info("Generated piece hash", "index", i, "hash", pieceHash)
 	}
 
 	pieceHashesString := make([]byte, 0, len(pieceHashes)*sha1.Size)

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/chezzijr/p2p/internal/common/api"
@@ -46,6 +47,8 @@ func NewPeer(port uint16) (*Peer, error) {
         return nil, err
     }
 
+    InitLogger(os.Stderr)
+
 	return &Peer{
 		config:           cfg,
         cache:            cache,
@@ -83,7 +86,6 @@ func (p *Peer) download(ctx context.Context, t *torrent.TorrentFile, filepath st
 }
 
 func (s *Peer) seed(t *torrent.TorrentFile, event api.AnnounceEvent) (*api.AnnounceResponse, error) {
-    slog.Info("Seeding", "url", t.Announce)
 	base, err := url.Parse(t.Announce)
 	if err != nil {
 		return nil, err
@@ -115,8 +117,6 @@ func (s *Peer) seed(t *torrent.TorrentFile, event api.AnnounceEvent) (*api.Annou
 	if err != nil {
 		return nil, err
 	}
-
-	slog.Info("Seeding", "url", t.Announce, "response", respBody)
 
 	return &respBody, nil
 }
@@ -153,7 +153,6 @@ func (p *Peer) RegisterEvent(e Event) {
 }
 
 func (p *Peer) Run(ctx context.Context) error {
-    //! TODO: Initialize server
     var lc net.ListenConfig
     lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", p.Port))
     if err != nil {
@@ -179,9 +178,10 @@ func (p *Peer) Run(ctx context.Context) error {
             return nil
         case e := <-p.events:
             go func() {
+                logger.Info("Handling event", "event", e.Name())
                 err := e.Handle(ctx, p)
                 if err != nil {
-                    slog.Error("Failed to handle event", "error", err)
+                    logger.Error("Failed to handle event", "event", e.Name(), "error", err)
                 }
             }()
         }
