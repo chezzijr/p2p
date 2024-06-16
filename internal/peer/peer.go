@@ -161,6 +161,8 @@ func (p *Peer) RegisterEvent(e Event) {
 }
 
 func (p *Peer) Run(ctx context.Context) error {
+    defer p.Close()
+
     var lc net.ListenConfig
     lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", p.Port))
     if err != nil {

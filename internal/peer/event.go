@@ -9,7 +9,7 @@ import (
 // This is used so that user can extend the functionality of the peer
 type Event interface {
 	Handle(ctx context.Context, p *Peer) error
-    Name() string
+	Name() string
 }
 
 type EventDownload struct {
@@ -18,7 +18,7 @@ type EventDownload struct {
 }
 
 func (e *EventDownload) Name() string {
-    return "Download"
+	return "Download"
 }
 
 func (e *EventDownload) Handle(ctx context.Context, p *Peer) error {
@@ -32,12 +32,10 @@ func (e *EventDownload) Handle(ctx context.Context, p *Peer) error {
 type EventUpload struct {
 	FilePath    string
 	TorrentPath string
-	// Used for announcing the file
-	Interval int
 }
 
 func (e *EventUpload) Name() string {
-    return "Upload"
+	return "Upload"
 }
 
 func (e *EventUpload) Handle(ctx context.Context, p *Peer) error {
@@ -45,5 +43,5 @@ func (e *EventUpload) Handle(ctx context.Context, p *Peer) error {
 	if err != nil {
 		return err
 	}
-    return p.seedTorrent(ctx, tf)
+	return p.seedTorrent(ctx, tf)
 }

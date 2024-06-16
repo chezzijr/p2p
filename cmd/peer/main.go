@@ -50,7 +50,6 @@ func main() {
 			panic(err)
 		}
 
-
 		if *seedingTorrent != "" {
 			filename := *seedingTorrent
 			ut, err := torrent.GenerateTorrentFromSingleFile(filename, *trackerURL, 1024)
