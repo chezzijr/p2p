@@ -19,6 +19,8 @@ type CachedFile struct {
 	Bitfield connection.BitField `json:"pieces"`
 }
 
+// TODO: also cached the seeding files
+// so that next time the peer start, it can continue seeding the files
 type CachedFiles []*CachedFile
 type CachedFilesMap map[string]*CachedFile
 

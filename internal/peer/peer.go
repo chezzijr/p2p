@@ -79,7 +79,7 @@ func (p *Peer) download(ctx context.Context, t *torrent.TorrentFile, filepath st
             os.Rename(filepath + ".tmp", filepath)
         }
         // seed the file
-        if session.done && p.config.SeedWhenFinishedDownload {
+        if session.done && p.config.SeedOnFileDownloaded {
             go p.seedTorrent(ctx, t)
         }
     }()
