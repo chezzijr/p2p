@@ -12,58 +12,57 @@ import (
 	"github.com/jackpal/bencode-go"
 )
 
-
 func (t *TorrentFile) buildTrackerUrl(peerID [20]byte, port uint16) (string, error) {
-    // build tracker url
-    base, err := url.Parse(t.Announce)
-    if err != nil {
-        return "", err
-    }
-  //   params := url.Values{
-  //       "info_hash":  []string{string(t.InfoHash[:])},
-		// "peer_id":    []string{string(peerID[:])},
-		// "port":       []string{strconv.Itoa(int(port))},
-		// "uploaded":   []string{"0"},
-		// "downloaded": []string{"0"},
-		// "compact":    []string{"1"},
-		// "left":       []string{strconv.Itoa(t.Length)},
-  //   }
-    params := api.AnnounceRequest{
-        InfoHash:  t.InfoHash.String(),
-        PeerID:    string(peerID[:]),
-        Port:      port,
-        Uploaded:  0,
-        Downloaded: 0,
-        Left:      t.Length,
-    }
-    base.RawQuery = params.ToUrlValues().Encode()
-    return base.String(), nil 
+	// build tracker url
+	base, err := url.Parse(t.Announce)
+	if err != nil {
+		return "", err
+	}
+	//   params := url.Values{
+	//       "info_hash":  []string{string(t.InfoHash[:])},
+	// "peer_id":    []string{string(peerID[:])},
+	// "port":       []string{strconv.Itoa(int(port))},
+	// "uploaded":   []string{"0"},
+	// "downloaded": []string{"0"},
+	// "compact":    []string{"1"},
+	// "left":       []string{strconv.Itoa(t.Length)},
+	//   }
+	params := api.AnnounceRequest{
+		InfoHash:   t.InfoHash.String(),
+		PeerID:     string(peerID[:]),
+		Port:       port,
+		Uploaded:   0,
+		Downloaded: 0,
+		Left:       t.Length,
+	}
+	base.RawQuery = params.ToUrlValues().Encode()
+	return base.String(), nil
 }
 
 func (t *TorrentFile) RequestPeers(peerID [20]byte, port uint16) ([]peers.Peer, error) {
-    trackerUrl, err := t.buildTrackerUrl(peerID, port)
-    if err != nil {
-        return nil, err
-    }
-    client := &http.Client{
-        Timeout: 15 * time.Second,
-    }
+	trackerUrl, err := t.buildTrackerUrl(peerID, port)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
 
-    resp, err := client.Get(trackerUrl)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
+	resp, err := client.Get(trackerUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode != http.StatusOK {
-        return nil, fmt.Errorf("Failed to request peers: %s", resp.Status)
-    }
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Failed to request peers: %s", resp.Status)
+	}
 
-    var r api.AnnounceResponse
-    err = bencode.Unmarshal(resp.Body, &r)
-    if err != nil {
-        return nil, err
-    }
+	var r api.AnnounceResponse
+	err = bencode.Unmarshal(resp.Body, &r)
+	if err != nil {
+		return nil, err
+	}
 
-    return peers.Unmarshal([]byte(r.Peers))
+	return peers.Unmarshal([]byte(r.Peers))
 }

@@ -82,6 +82,9 @@ migrate-down:
 	    fi; \
 	fi
 
+fmt:
+	@go fmt ./...
+
 # Live Reload
 watch:
 	@if command -v air > /dev/null; then \

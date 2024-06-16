@@ -50,7 +50,7 @@ func (info *torrentBencodeInfo) hash() (Sha1Hash, error) {
 func (info *torrentBencodeInfo) splitPieceHashes() ([]Sha1Hash, error) {
 	hashLen := sha1.Size // default length of sha1 hash in bytes
 	buf := []byte(info.Pieces)
-	if len(buf) % hashLen != 0 {
+	if len(buf)%hashLen != 0 {
 		return nil, ErrMalformedPieces
 	}
 	numHashes := len(buf) / hashLen

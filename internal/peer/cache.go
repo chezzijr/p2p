@@ -10,10 +10,10 @@ import (
 // Used to keep track of the downloading files
 // When peer is gracefully shutdown, save the progress of the downloaded files to cache
 type CachedFile struct {
-    // When peer stop during downloading, some pieces will be missed
-    // When peer start again, it will check the cache and download the missing pieces
-	Filepath    string `json:"filepath"`
-	InfoHash    string `json:"infohash"`
+	// When peer stop during downloading, some pieces will be missed
+	// When peer start again, it will check the cache and download the missing pieces
+	Filepath string `json:"filepath"`
+	InfoHash string `json:"infohash"`
 
 	// Keep track of which pieces have been downloaded
 	Bitfield connection.BitField `json:"pieces"`

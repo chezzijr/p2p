@@ -6,8 +6,8 @@ import (
 
 type FiberServer struct {
 	*fiber.App
-    trackerServer  Tracker
-    explorerServer Explorer
+	trackerServer  Tracker
+	explorerServer Explorer
 }
 
 func New(trackerServer Tracker, explorerServer Explorer) *FiberServer {
@@ -16,11 +16,9 @@ func New(trackerServer Tracker, explorerServer Explorer) *FiberServer {
 			ServerHeader: "p2p",
 			AppName:      "p2p",
 		}),
-        trackerServer:  trackerServer,
-        explorerServer: explorerServer,
+		trackerServer:  trackerServer,
+		explorerServer: explorerServer,
 	}
 
 	return server
 }
-
-

@@ -16,11 +16,11 @@ type Handshake struct {
 }
 
 func NewHandshake(infoHash, peerID [20]byte) *Handshake {
-    return &Handshake{
-        Protocol: "BitTorrent protocol",
-        InfoHash: infoHash,
-        PeerID:   peerID,
-    }
+	return &Handshake{
+		Protocol: "BitTorrent protocol",
+		InfoHash: infoHash,
+		PeerID:   peerID,
+	}
 }
 
 func (h *Handshake) Serialize() []byte {
@@ -58,7 +58,7 @@ func ReadHandshake(r io.Reader) (*Handshake, error) {
 	copy(peerID[:], handshakeBuf[pstrlen+8+20:])
 
 	h := Handshake{
-		Protocol:     string(handshakeBuf[0:pstrlen]),
+		Protocol: string(handshakeBuf[0:pstrlen]),
 		InfoHash: infoHash,
 		PeerID:   peerID,
 	}

@@ -40,7 +40,7 @@ func (p *Peer) respondHandshake(conn net.Conn) (*torrent.TorrentFile, error) {
 	}
 
 	// find corresponding torrent file
-    t, ok := p.seedingTorrents[string(req.InfoHash[:])]
+	t, ok := p.seedingTorrents[string(req.InfoHash[:])]
 
 	// if the torrent file is not found, reject the connection
 	var infoHash [20]byte
@@ -124,9 +124,9 @@ func (session *UploadSession) uploadToPeer() error {
 				errors.Is(err, syscall.EPIPE):
 				slog.Info("Connection closed")
 				return nil
-            case ok && errNet.Timeout():
-                slog.Info("Connection timeout")
-                return nil
+			case ok && errNet.Timeout():
+				slog.Info("Connection timeout")
+				return nil
 			default:
 				slog.Error("Failed to read message", "error", err)
 				continue
@@ -150,17 +150,17 @@ func (session *UploadSession) uploadToPeer() error {
 			}
 			_, err = session.conn.Write(msg.Serialize())
 			if err != nil {
-                continue
+				continue
 			}
 		case connection.MsgInterested:
 			session.interested = true
-            err := session.sendUnchoke()
-            if err != nil {
-                slog.Error("Failed to send unchoke", "error", err)
-                continue
-            }
-            session.choked = false
-            
+			err := session.sendUnchoke()
+			if err != nil {
+				slog.Error("Failed to send unchoke", "error", err)
+				continue
+			}
+			session.choked = false
+
 		case connection.MsgNotInterested:
 			break
 		case connection.MsgHave:
@@ -175,11 +175,11 @@ func (session *UploadSession) uploadToPeer() error {
 }
 
 func (us *UploadSession) sendUnchoke() error {
-    msg := &connection.Message{
-        ID: connection.MsgUnchoke,
-    }
-    _, err := us.conn.Write(msg.Serialize())
-    return err
+	msg := &connection.Message{
+		ID: connection.MsgUnchoke,
+	}
+	_, err := us.conn.Write(msg.Serialize())
+	return err
 }
 
 func (session *UploadSession) readMessage() (*connection.Message, error) {

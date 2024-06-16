@@ -15,16 +15,16 @@ import (
 func main() {
 
 	fx.New(
-        fx.Provide(database.NewPostgres),
-        fx.Provide(database.NewRedis),
-        fx.Provide(server.NewTrackerServer),
-        fx.Provide(server.NewExplorerServer),
+		fx.Provide(database.NewPostgres),
+		fx.Provide(database.NewRedis),
+		fx.Provide(server.NewTrackerServer),
+		fx.Provide(server.NewExplorerServer),
 		fx.Provide(server.New),
-        fx.Invoke(func(server *server.FiberServer) error {
-            server.RegisterFiberRoutes()
+		fx.Invoke(func(server *server.FiberServer) error {
+			server.RegisterFiberRoutes()
 
-            port, _ := strconv.Atoi(os.Getenv("PORT"))
-            return server.Listen(fmt.Sprintf(":%d", port))
-        }),
+			port, _ := strconv.Atoi(os.Getenv("PORT"))
+			return server.Listen(fmt.Sprintf(":%d", port))
+		}),
 	).Run()
 }

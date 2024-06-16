@@ -30,20 +30,20 @@ type DownloadClient struct {
 
 func NewClient(ctx context.Context, p peers.Peer, peerID [20]byte, infoHash [20]byte) (*DownloadClient, error) {
 	// conn, err := net.Dial("tcp", p.String())
-    var d net.Dialer
-    conn, err := d.DialContext(ctx, "tcp", p.String())
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", p.String())
 	if err != nil {
 		return nil, err
 	}
 
-    slog.Info("Attempting handshake with", "peer", conn.RemoteAddr())
+	slog.Info("Attempting handshake with", "peer", conn.RemoteAddr())
 	_, err = completeHandshake(conn, infoHash, peerID)
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 
-    slog.Info("Receiving bitfield from", "peer", conn.RemoteAddr())
+	slog.Info("Receiving bitfield from", "peer", conn.RemoteAddr())
 	bf, err := recvBitField(conn)
 	if err != nil {
 		conn.Close()
@@ -93,7 +93,7 @@ func (c *DownloadClient) SendHave(index int) error {
 }
 
 func (c *DownloadClient) SendUnchoke() error {
-    c.Choked = false
+	c.Choked = false
 	msg := connection.Message{ID: connection.MsgUnchoke}
 	_, err := c.Conn.Write(msg.Serialize())
 	return err
@@ -103,7 +103,7 @@ func completeHandshake(conn net.Conn, infoHash, peerID [20]byte) (*connection.Ha
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	defer conn.SetDeadline(time.Time{})
 
-    slog.Info("Attempting handshake with", "peer", conn.RemoteAddr())
+	slog.Info("Attempting handshake with", "peer", conn.RemoteAddr())
 
 	req := connection.NewHandshake(infoHash, peerID)
 	_, err := conn.Write(req.Serialize())
@@ -127,7 +127,7 @@ func recvBitField(conn net.Conn) (connection.BitField, error) {
 	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	defer conn.SetDeadline(time.Time{})
 
-    slog.Info("Receiving bitfield from", "peer", conn.RemoteAddr())
+	slog.Info("Receiving bitfield from", "peer", conn.RemoteAddr())
 
 	msg, err := connection.ReadMsg(conn)
 	if err != nil {

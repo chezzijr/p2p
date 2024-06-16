@@ -27,9 +27,9 @@ func (bf BitField) NumPieces() int {
 	for _, v := range bf {
 		v = (v & 0x55) + ((v >> 1) & 0x55)
 		v = (v & 0x33) + ((v >> 2) & 0x33)
-        count += int((v + (v>>4)) & 0xF)
+		count += int((v + (v >> 4)) & 0xF)
 	}
-    return count
+	return count
 }
 
 func NewBitField(size int) BitField {

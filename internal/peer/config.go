@@ -10,12 +10,12 @@ import (
 const AppName = "chezzijr-p2p"
 
 type Config struct {
-	CachePath             string `json:"cache_path"`
-	LogPath               string `json:"log_path"`
-	DefaultBlockSize      int    `json:"default_block_size"`
-	SeedOnFileDownloaded  bool   `json:"seed_on_file_downloaded"`
-    // This is hard to implement
-	SeedOnPieceDownloaded bool   `json:"seed_on_piece_downloaded"`
+	CachePath            string `json:"cache_path"`
+	LogPath              string `json:"log_path"`
+	DefaultBlockSize     int    `json:"default_block_size"`
+	SeedOnFileDownloaded bool   `json:"seed_on_file_downloaded"`
+	// This is hard to implement
+	SeedOnPieceDownloaded bool `json:"seed_on_piece_downloaded"`
 }
 
 func LoadConfig() (*Config, error) {

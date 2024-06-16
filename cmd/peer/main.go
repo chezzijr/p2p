@@ -75,20 +75,20 @@ func main() {
 			}
 
 			slog.Info("Downloading", "torrent", dt.Name)
-            p.RegisterEvent(&peer.EventDownload{
-                DownloadPath: "tests/",
-                TorrentPath: *downloadTorrent,
-            })
+			p.RegisterEvent(&peer.EventDownload{
+				DownloadPath: "tests/",
+				TorrentPath:  *downloadTorrent,
+			})
 		}
 
 		slog.Info("Listening", "port", *port)
 
-        ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(context.Background())
 		err = p.Run(ctx)
 		if err != nil {
-            panic(err)
+			panic(err)
 		}
-        defer cancel()
+		defer cancel()
 	default:
 		slog.Error("Unknown command")
 	}

@@ -46,37 +46,37 @@ func (t *TorrentFile) Save(filePath string) error {
 }
 
 func ReadPiecesFromFile(filePath string, pieceLength int) ([][]byte, error) {
-    // open file
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
+	// open file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
-    fileStat, err := file.Stat()
-    if err != nil {
-        return nil, err
-    }
+	fileStat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
 
-    r := bufio.NewReader(file)
+	r := bufio.NewReader(file)
 
-    numHashes := int(fileStat.Size()) / pieceLength + 1
-    pieceHashes := make([][]byte, numHashes)
+	numHashes := int(fileStat.Size())/pieceLength + 1
+	pieceHashes := make([][]byte, numHashes)
 
-    for i := 0; i < numHashes; i++ {
-        begin := i * pieceLength
-        end := min((i+1)*pieceLength, int(fileStat.Size()))
+	for i := 0; i < numHashes; i++ {
+		begin := i * pieceLength
+		end := min((i+1)*pieceLength, int(fileStat.Size()))
 
-        buf := make([]byte, end-begin)
-        // read piece length byte
-        _, err := r.Read(buf[:])
-        if err != nil {
-            return nil, err
-        }
-        pieceHashes[i] = buf
-    }
+		buf := make([]byte, end-begin)
+		// read piece length byte
+		_, err := r.Read(buf[:])
+		if err != nil {
+			return nil, err
+		}
+		pieceHashes[i] = buf
+	}
 
-    return pieceHashes, nil
+	return pieceHashes, nil
 
 }
 
@@ -95,14 +95,14 @@ func GenerateTorrentFromSingleFile(filePath, trackerUrl string, pieceLength int)
 
 	r := bufio.NewReader(file)
 
-    numHashes := int(fileStat.Size()) / pieceLength + 1
+	numHashes := int(fileStat.Size())/pieceLength + 1
 	pieceHashes := make([][20]byte, numHashes)
 
 	for i := 0; i < numHashes; i++ {
 		begin := i * pieceLength
 		end := min((i+1)*pieceLength, int(fileStat.Size()))
 
-        buf := make([]byte, end - begin)
+		buf := make([]byte, end-begin)
 		// read piece length byte
 		_, err := r.Read(buf[:])
 		if err != nil {
@@ -142,5 +142,5 @@ func OpenFromReader(r io.Reader) (*TorrentFile, error) {
 }
 
 func (t *TorrentFile) Write(w io.Writer) error {
-    return bencode.Marshal(w, t.toTorrentBencode())
+	return bencode.Marshal(w, t.toTorrentBencode())
 }
