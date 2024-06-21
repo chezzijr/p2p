@@ -29,6 +29,7 @@ func main() {
 
 	// get first argument
 	cmd := flag.Arg(0)
+
 	switch cmd {
 	case "list":
 		slog.Info("Searching for torrents")
@@ -83,17 +84,21 @@ func main() {
 
 		slog.Info("Listening", "port", *port)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		err = p.Run(ctx)
-		if err != nil {
-			panic(err)
-		}
-		defer cancel()
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
+        go func() {
+            err = p.Run(ctx)
+            if err != nil {
+                panic(err)
+            }
+        }()
+
+        signalChan := make(chan os.Signal, 1)
+        signal.Notify(signalChan, os.Interrupt)
+        <-signalChan
+        slog.Info("Shutting down")
 	default:
 		slog.Error("Unknown command")
 	}
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt)
-	<-signalChan
 }
