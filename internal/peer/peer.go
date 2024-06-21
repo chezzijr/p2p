@@ -75,7 +75,7 @@ func (p *Peer) download(ctx context.Context, t *torrent.TorrentFile, filepath st
 		delete(p.downloadingPeers, t.InfoHash.String())
 		// rename file
 		if session.done {
-			os.Rename(filepath+t.Name+".tmp", filepath)
+			os.Rename(filepath+t.Name+".tmp", filepath+t.Name)
 		}
 		// seed the file
 		if session.done && p.config.SeedOnFileDownloaded {
