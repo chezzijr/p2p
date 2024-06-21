@@ -85,19 +85,22 @@ func main() {
 		slog.Info("Listening", "port", *port)
 
         ctx, cancel := context.WithCancel(context.Background())
-        defer cancel()
+        defer func() {
+            cancel()
+            <-p.Done()
+        }()
 
-        go func() {
-            err = p.Run(ctx)
+        go func(c context.Context) {
+            err = p.Run(c)
             if err != nil {
                 panic(err)
             }
-        }()
+        }(ctx)
 
         signalChan := make(chan os.Signal, 1)
         signal.Notify(signalChan, os.Interrupt)
         <-signalChan
-        slog.Info("Shutting down")
+        slog.Info("Gracefully shutting down")
 	default:
 		slog.Error("Unknown command")
 	}

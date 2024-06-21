@@ -24,6 +24,7 @@ type Peer struct {
 	downloadingPeers map[string]*DownloadSession
 	uploadingPeers   map[string]*UploadSession
 	seedingTorrents  map[string]*torrent.TorrentFile
+	done             chan struct{}
 
 	PeerID [20]byte
 	Port   uint16
@@ -59,6 +60,7 @@ func NewPeer(port uint16) (*Peer, error) {
 		seedingTorrents:  make(map[string]*torrent.TorrentFile),
 		PeerID:           peerID,
 		Port:             port,
+		done:             make(chan struct{}, 1),
 	}, nil
 }
 
@@ -174,7 +176,7 @@ func (p *Peer) Run(ctx context.Context) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				slog.Error("Failed to accept connection", "error", err)
-				continue
+				return
 			}
 			go p.handleConn(conn)
 		}
@@ -199,9 +201,17 @@ func (p *Peer) Run(ctx context.Context) error {
 
 // graceful shutdown
 func (p *Peer) Close() {
+	logger.Info("Closing peer")
 	for _, session := range p.downloadingPeers {
 		session.Close()
 	}
 	// save cache
 	p.cache.SaveCache(p.config.CachePath)
+
+	time.Sleep(time.Second * 3)
+	p.done <- struct{}{}
+}
+
+func (p *Peer) Done() <-chan struct{} {
+	return p.done
 }
