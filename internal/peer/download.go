@@ -216,7 +216,11 @@ func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer
 	}()
 	c.SendInterested()
 
-	for pi := range pQ {
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case pi := <-pQ:
 		if !c.Bitfield.HasPiece(pi.index) {
 			pQ <- pi
 			continue
@@ -238,7 +242,9 @@ func (ds *DownloadSession) downloadFromPeer(ctx context.Context, peer peers.Peer
 
 		c.SendHave(pi.index)
 		rQ <- &pieceResult{index: pi.index, buf: buf}
-	}
+        }
+    }
+
 
 }
 
