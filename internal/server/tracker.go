@@ -109,7 +109,7 @@ func (t *tracker) AnnounceHandler(c *fiber.Ctx) error {
 		}
 	} else {
 		// return event error
-		return errors.New("Invalid event")
+		// return errors.New("Invalid event")
 	}
 
 	err = bencode.Marshal(c, api.AnnounceResponse{

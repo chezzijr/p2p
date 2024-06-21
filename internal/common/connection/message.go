@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
+	// "log/slog"
 )
 
 type messageID uint8
@@ -127,7 +127,7 @@ func ParsePieceMsg(index int, buf []byte, msg *Message) (int, error) {
 		return 0, fmt.Errorf("Data goes out of bounds. Begin = %d, len = %d, buf len = %d", begin, len(data), len(buf))
 	}
 
-	slog.Info("Received piece", "bytes", data)
+	// slog.Info("Received piece", "bytes", data)
 
 	copy(buf[begin:], data)
 	return len(data), nil

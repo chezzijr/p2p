@@ -38,7 +38,7 @@ func Marshal(peers ...Peer) []byte {
 	peersBin := make([]byte, len(peers)*peerSize)
 	for i, peer := range peers {
 		offset := i * peerSize
-		copy(peersBin[offset:offset+4], peer.Ip)
+		copy(peersBin[offset:offset+4], peer.Ip.To4())
 		binary.BigEndian.PutUint16(peersBin[offset+4:offset+6], peer.Port)
 	}
 	return peersBin

@@ -9,7 +9,7 @@ import (
 	"net"
 	"os"
 	"syscall"
-	"time"
+	// "time"
 
 	"github.com/chezzijr/p2p/internal/common/connection"
 	"github.com/chezzijr/p2p/internal/common/torrent"
@@ -112,7 +112,7 @@ func (session *UploadSession) uploadToPeer() error {
 		return err
 	}
 
-	session.conn.SetReadDeadline(time.Now().Add(2 * time.Minute))
+	// session.conn.SetReadDeadline(time.Now().Add(2 * time.Minute))
 
 	for {
 		msg, err := session.readMessage()
@@ -165,11 +165,11 @@ func (session *UploadSession) uploadToPeer() error {
 			break
 		case connection.MsgHave:
 			// we were informed that the peer has a piece
-			index, err := connection.ParseHaveMsg(msg)
+			_, err := connection.ParseHaveMsg(msg)
 			if err != nil {
 				continue
 			}
-			slog.Info("Peer has piece", "index", index)
+			// slog.Info("Peer has piece", "index", index)
 		}
 	}
 }
