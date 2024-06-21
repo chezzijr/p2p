@@ -58,9 +58,9 @@ func NewPeer(port uint16) (*Peer, error) {
 		downloadingPeers: make(map[string]*DownloadSession),
 		uploadingPeers:   make(map[string]*UploadSession),
 		seedingTorrents:  make(map[string]*torrent.TorrentFile),
+        done:             make(chan struct{}, 1),
 		PeerID:           peerID,
 		Port:             port,
-		done:             make(chan struct{}, 1),
 	}, nil
 }
 
@@ -68,6 +68,7 @@ func NewPeer(port uint16) (*Peer, error) {
 // When finished, rename file.ext.tmp to file.ext
 // This function is a goroutine
 func (p *Peer) download(ctx context.Context, t *torrent.TorrentFile, filepath string) error {
+    logger.Info("Downloading torrent", "Info hash", t.InfoHash.String())
 	session, err := p.NewDownloadSession(t, filepath)
 	if err != nil {
 		return err

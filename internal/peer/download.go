@@ -305,6 +305,7 @@ func (ds *DownloadSession) Download(ctx context.Context, filepath string) error 
 			donePieces++
 
 			ds.bitfield.SetPiece(res.index)
+            ds.peerInfo.cache[ds.InfoHash.String()].Bitfield.SetPiece(res.index)
 		}
 	}
 	ds.done = true
