@@ -50,6 +50,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+        defer p.Close()
 
 		if *seedingTorrent != "" {
 			filename := *seedingTorrent
@@ -85,11 +86,6 @@ func main() {
 		slog.Info("Listening", "port", *port)
 
         ctx, cancel := context.WithCancel(context.Background())
-        defer func() {
-            cancel()
-            <-p.Done()
-        }()
-
         go func(c context.Context) {
             err = p.Run(c)
             if err != nil {
@@ -100,6 +96,7 @@ func main() {
         signalChan := make(chan os.Signal, 1)
         signal.Notify(signalChan, os.Interrupt)
         <-signalChan
+        cancel() // cancel all running sessions
         slog.Info("Gracefully shutting down")
 	default:
 		slog.Error("Unknown command")

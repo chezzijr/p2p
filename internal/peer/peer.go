@@ -58,7 +58,7 @@ func NewPeer(port uint16) (*Peer, error) {
 		downloadingPeers: make(map[string]*DownloadSession),
 		uploadingPeers:   make(map[string]*UploadSession),
 		seedingTorrents:  make(map[string]*torrent.TorrentFile),
-        done:             make(chan struct{}, 1),
+        // done:             make(chan struct{}, 1),
 		PeerID:           peerID,
 		Port:             port,
 	}, nil
@@ -163,8 +163,6 @@ func (p *Peer) RegisterEvent(e Event) {
 }
 
 func (p *Peer) Run(ctx context.Context) error {
-	defer p.Close()
-
 	var lc net.ListenConfig
 	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", p.Port))
 	if err != nil {
@@ -210,9 +208,9 @@ func (p *Peer) Close() {
 	p.cache.SaveCache(p.config.CachePath)
 
 	time.Sleep(time.Second * 3)
-	p.done <- struct{}{}
+	// p.done <- struct{}{}
 }
 
-func (p *Peer) Done() <-chan struct{} {
-	return p.done
-}
+// func (p *Peer) Done() <-chan struct{} {
+// 	return p.done
+// }

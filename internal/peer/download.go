@@ -262,10 +262,10 @@ func (ds *DownloadSession) Download(ctx context.Context, filepath string) error 
 	ds.peerInfo.updateToTracker(ds.TorrentFile, api.Started, 0, numDownloadedPieces*ds.PieceLength)
 
 	piecesQueue := make(chan *pieceInfo, ds.NumPieces())
-	defer close(piecesQueue)
+	// defer close(piecesQueue)
 
 	resultsQueue := make(chan *pieceResult, ds.NumPieces())
-	defer close(resultsQueue)
+	// defer close(resultsQueue)
 
 	for i, hash := range ds.PieceHashes {
 		// check if the piece is already downloaded
