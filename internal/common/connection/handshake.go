@@ -24,6 +24,12 @@ func NewHandshake(infoHash, peerID [20]byte) *Handshake {
 }
 
 func (h *Handshake) Serialize() []byte {
+    // 1 byte for protocol length
+    // 8 bytes for reserved bytes
+    // 20 bytes for info hash
+    // 20 bytes for peer id
+    // so the total length is 49 + len(h.Protocol)
+
 	buf := make([]byte, len(h.Protocol)+49)
 	buf[0] = byte(len(h.Protocol))
 	curr := 1
@@ -40,7 +46,7 @@ func ReadHandshake(r io.Reader) (*Handshake, error) {
 	if err != nil {
 		return nil, err
 	}
-	pstrlen := int(lengthBuf[0])
+	pstrlen := int(lengthBuf[0]) // protocol length
 
 	if pstrlen == 0 {
 		return nil, ErrInvalidProtocol

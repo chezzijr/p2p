@@ -2,7 +2,6 @@ package connection
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	// "log/slog"
@@ -20,11 +19,6 @@ const (
 	MsgRequest
 	MsgPiece
 	MsgCancel
-)
-
-var (
-	ErrInvalidMessage = errors.New("invalid message")
-	ErrInvalidLength  = errors.New("invalid length")
 )
 
 type Message struct {
@@ -93,11 +87,11 @@ func BuildHaveMsg(index int) *Message {
 
 func ParseHaveMsg(msg *Message) (int, error) {
 	if msg == nil || msg.ID != MsgHave {
-		return 0, ErrInvalidMessage
+        return 0, fmt.Errorf("Invalid message: %v", msg)
 	}
 
 	if len(msg.Payload) != 4 {
-		return 0, ErrInvalidLength
+		return 0, fmt.Errorf("Payload length is not 4. %d != 4", len(msg.Payload))
 	}
 
 	return int(binary.BigEndian.Uint32(msg.Payload)), nil

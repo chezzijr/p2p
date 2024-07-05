@@ -2,13 +2,8 @@ package peers
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
-)
-
-var (
-	ErrMalformedPeers = errors.New("Received malformed peers")
 )
 
 type Peer struct {
@@ -22,7 +17,7 @@ const peerSize = 6
 
 func Unmarshal(peersBin []byte) ([]Peer, error) {
 	if len(peersBin)%peerSize != 0 {
-		return nil, ErrMalformedPeers
+		return nil, fmt.Errorf("Received malformed peers of length %d", len(peersBin))
 	}
 	numPeers := len(peersBin) / peerSize
 	peers := make([]Peer, numPeers)
