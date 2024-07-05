@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestUnmarshal(t testing.T) {
+func TestUnmarshal(t *testing.T) {
 	buf := make([]byte, 6)
 	buf[0] = 192
 	buf[1] = 168
@@ -33,7 +33,7 @@ func TestUnmarshal(t testing.T) {
 	}
 }
 
-func TestMarshal(t testing.T) {
+func TestMarshal(t *testing.T) {
 	peer := Peer{
 		Ip:   net.ParseIP("123.45.67.89"),
 		Port: 12345,
