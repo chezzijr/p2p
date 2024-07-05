@@ -1,4 +1,22 @@
 services:
+  server:
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=psql 
+      - REDIS_HOST=redis 
+    build:
+      dockerfile: ./Dockerfile
+      target: server
+    container_name: server
+    restart: unless-stopped
+    ports:
+      - ${PORT}:8080
+    depends_on:
+      psql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   psql:
     image: postgres:alpine
     env_file: .env
@@ -26,7 +44,7 @@ services:
     volumes:
       - redis-data:/data
     ports:
-      - ${REDIS_PORT}:${REDIS_PORT}
+      - ${REDIS_PORT}:6379
     healthcheck:
       test: redis-cli ping
       interval: 1s
