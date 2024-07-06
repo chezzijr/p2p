@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/chezzijr/p2p/internal/common/connection"
+	"github.com/chezzijr/p2p/internal/common/utils"
 )
 
 // Used to keep track of the downloading files
@@ -47,7 +48,11 @@ func (c CachedFilesMap) SaveCache(path string) error {
 // instead of creating a file when creating config
 // This ensures that the file exists
 func LoadCache(path string) (CachedFilesMap, error) {
-    createFileIfNotExist(path)
+    // Failed to create, exit
+    err := utils.CreateFileIfNotExist(path)
+    if err != nil {
+        return nil, err
+    }
 
 	file, err := os.Open(path)
     if err != nil {

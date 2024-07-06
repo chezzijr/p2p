@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/chezzijr/p2p/internal/common/utils"
 	"github.com/spf13/viper"
 )
 
@@ -89,23 +90,17 @@ func createDefaultConfig() error {
     viper.SetDefault("SeedOnFileDownloaded", defaultCfg.SeedOnFileDownloaded)
     viper.SetDefault("SeedOnPieceDownloaded", defaultCfg.SeedOnPieceDownloaded)
 
-    createFileIfNotExist(configFilePath)
+    err := utils.CreateFileIfNotExist(configFilePath)
+    if err != nil {
+        return err
+    }
 
     // write default config
-    err := viper.SafeWriteConfig()
+    err = viper.SafeWriteConfig()
     if err != nil {
         return err
     }
 
     err = viper.ReadInConfig()
-    return err
-}
-
-func createFileIfNotExist(filePath string) error {
-    _, err := os.Stat(filePath)
-    if os.IsNotExist(err) {
-        err = os.MkdirAll(path.Dir(filePath), os.ModePerm)
-        return err
-    }
     return err
 }
