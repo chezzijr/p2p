@@ -2,103 +2,130 @@ package main
 
 import (
 	"context"
-	"flag"
-	"log/slog"
+	"io"
+	"net/http"
 	"os"
 	"os/signal"
+	// "path"
 
 	"github.com/chezzijr/p2p/internal/common/torrent"
 	"github.com/chezzijr/p2p/internal/peer"
-)
-
-var (
-	port            = flag.Uint("port", 1234, "port to listen on")
-	seedingTorrent  = flag.String("seed", "", "torrent file to seed")
-	downloadTorrent = flag.String("download", "", "torrent file to leech")
-	trackerURL      = flag.String("tracker", "http://localhost:8080/announce", "tracker URL")
-	file            = flag.String("file", "", "file to create torrent from")
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	flag.Parse()
+    app := &cli.App{
+        Name: "chezzijr-p2p",
+        Usage: "File sharing application",
+        Commands: []*cli.Command{
+            {
+                Name: "start",
+                Usage: "Start the peer",
+                Flags: []cli.Flag{
+                    &cli.UintFlag{
+                        Name: "port",
+                        Value: 6881,
+                        Aliases: []string{"p"},
+                        Usage: "Port to listen on",
+                    },
+                    &cli.StringFlag{
+                        Name: "tracker",
+                        Value: "http://localhost:8080/announce",
+                        Aliases: []string{"t"},
+                        Usage: "Tracker URL",
+                    },
+                    &cli.StringSliceFlag{
+                        Name: "seed",
+                        Value: cli.NewStringSlice(),
+                        Aliases: []string{"s"},
+                        Usage: "Files to seed, from which the metainfo files will be created",
+                    },
+                    &cli.StringSliceFlag{
+                        Name: "leech",
+                        Value: cli.NewStringSlice(),
+                        Aliases: []string{"l"},
+                        Usage: "Torrent files to leech",
+                    },
+                },
+                Action: func(c *cli.Context) error {
+                    port := c.Uint("port")
+                    trackerUrl := c.String("tracker")
+                    seedingFiles := c.StringSlice("seed")
+                    leechingFiles := c.StringSlice("leech")
 
-	if flag.NArg() == 0 {
-		flag.Usage()
-		return
-	}
+                    p, err := peer.NewPeer(uint16(port))
+                    if err != nil {
+                        return err
+                    }
+                    defer p.Close()
 
-	// get first argument
-	cmd := flag.Arg(0)
+                    for _, seedingFile := range seedingFiles {
+                        t, err := torrent.GenerateTorrentFromSingleFile(seedingFile, trackerUrl, 1024)
+                        if err != nil {
+                            return err
+                        }
 
-	switch cmd {
-	case "list":
-		slog.Info("Searching for torrents")
-	case "create":
-		if *file == "" {
-			slog.Error("No file provided")
-			return
-		}
-		slog.Info("Creating torrent")
-		ut, err := torrent.GenerateTorrentFromSingleFile(*file, *trackerURL, 1024)
-		if err != nil {
-			panic(err)
-		}
-		ut.Save(ut.Name + ".torrent")
+                        torrentFile := t.Name + ".torrent"
+                        err = t.Save(torrentFile)
+                        if err != nil {
+                            return err
+                        }
 
-	case "run":
-		p, err := peer.NewPeer(uint16(*port))
-		if err != nil {
-			panic(err)
-		}
-        defer p.Close()
+                        p.RegisterEvent(&peer.EventUpload{
+                            FilePath: seedingFile,
+                            TorrentPath: torrentFile,
+                        })
+                    }
 
-		if *seedingTorrent != "" {
-			filename := *seedingTorrent
-			ut, err := torrent.GenerateTorrentFromSingleFile(filename, *trackerURL, 1024)
-			if err != nil {
-				panic(err)
-			}
+                    for _, leechingFile := range leechingFiles {
+                        p.RegisterEvent(&peer.EventDownload{
+                            DownloadPath: "tests",
+                            TorrentPath: leechingFile,
+                        })
+                    }
 
-			err = ut.Save(ut.Name + ".torrent")
-			if err != nil {
-				panic(err)
-			}
+                    err = p.Run(c.Context)
 
-			p.RegisterEvent(&peer.EventUpload{
-				FilePath:    filename,
-				TorrentPath: ut.Name + ".torrent",
-			})
-		}
+                    return err
+                },
+            },
+            {
+                Name: "list",
+                Usage: "List the torrents on the website",
+                Flags: []cli.Flag{
+                    &cli.StringFlag{
+                        Name: "url",
+                        Value: "http://localhost:8080/api/list",
+                        Usage: "Website URL",
+                    },
+                },
+                Action: func(c *cli.Context) error {
+                    url := c.String("url")
 
-		if *downloadTorrent != "" {
-			dt, err := torrent.Open(*downloadTorrent)
-			if err != nil {
-				panic(err)
-			}
+                    resp, err := http.Get(url)
+                    if err != nil {
+                        return err
+                    }
+                    defer resp.Body.Close()
 
-			slog.Info("Downloading", "torrent", dt.Name)
-			p.RegisterEvent(&peer.EventDownload{
-				DownloadPath: "tests/",
-				TorrentPath:  *downloadTorrent,
-			})
-		}
+                    io.Copy(os.Stdout, resp.Body)
 
-		slog.Info("Listening", "port", *port)
+                    return nil
+                },
+            },
+        },
+    }
 
-        ctx, cancel := context.WithCancel(context.Background())
-        go func(c context.Context) {
-            err = p.Run(c)
-            if err != nil {
-                panic(err)
-            }
-        }(ctx)
+    ctx, cancel := context.WithCancel(context.Background())
 
+    go func() {
         signalChan := make(chan os.Signal, 1)
         signal.Notify(signalChan, os.Interrupt)
         <-signalChan
-        cancel() // cancel all running sessions
-        slog.Info("Gracefully shutting down")
-	default:
-		slog.Error("Unknown command")
-	}
+        cancel()
+    }()
+
+    if err := app.RunContext(ctx, os.Args); err != nil {
+        panic(err)
+    }
 }

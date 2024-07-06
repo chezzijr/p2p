@@ -208,9 +208,4 @@ func (p *Peer) Close() {
 	p.cache.SaveCache(p.config.CachePath)
 
 	time.Sleep(time.Second * 3)
-	// p.done <- struct{}{}
 }
-
-// func (p *Peer) Done() <-chan struct{} {
-// 	return p.done
-// }
