@@ -1,122 +1,111 @@
 package peer
 
 import (
-	"encoding/json"
-	"log/slog"
 	"os"
 	"path"
+
+	"github.com/spf13/viper"
 )
 
-const AppName = "chezzijr-p2p"
+const APPNAME = "chezzijr-p2p"
+
+var (
+    configPath string
+    cachePath  string
+    logPath    string
+)
+
+func init() {
+    var err error
+    configPath, err = os.UserConfigDir()
+    if err != nil {
+        // use temp dir if user config dir not found
+        configPath = os.TempDir()
+    }
+    configPath = path.Join(configPath, APPNAME)
+
+    cachePath, err = os.UserCacheDir()
+    if err != nil {
+        // use temp dir if user cache dir not found
+        cachePath = os.TempDir()
+    }
+    cachePath = path.Join(cachePath, APPNAME)
+
+    logPath = path.Join(os.TempDir(), APPNAME)
+}
 
 type Config struct {
-	CachePath            string `json:"cache_path"`
-	LogPath              string `json:"log_path"`
-	DefaultBlockSize     int    `json:"default_block_size"`
-	SeedOnFileDownloaded bool   `json:"seed_on_file_downloaded"`
+	CachePath            string
+	LogPath              string
+	DefaultBlockSize     int    
+	SeedOnFileDownloaded bool   
 	// This is hard to implement
-	SeedOnPieceDownloaded bool `json:"seed_on_piece_downloaded"`
+	SeedOnPieceDownloaded bool
 }
 
 func LoadConfig() (*Config, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return nil, err
-	}
-	configPath := path.Join(configDir, AppName, "config.json")
+	viper.AddConfigPath(configPath)
+    viper.AddConfigPath(path.Join(os.TempDir(), APPNAME))
 
-	f, err := os.Open(configPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			slog.Warn("Config file not found, creating default config")
-			return CreateDefaultConfig()
-		}
-		return nil, err
-	}
-	defer f.Close()
+	viper.SetConfigName("config")
+	viper.SetConfigType("json")
 
-	config := &Config{}
-	err = json.NewDecoder(f).Decode(config)
-	if err != nil {
-		return nil, err
+	if err := viper.ReadInConfig(); err != nil {
+        if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+            if err := createDefaultConfig(); err != nil {
+                return nil, err
+            }
+        } else {
+            return nil, err
+        }
 	}
 
-	return config, nil
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
-func CreateDefaultConfig() (*Config, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return nil, err
-	}
-	configDir = path.Join(configDir, AppName)
-	configPath := path.Join(configDir, "config.json")
+// This will call if config file not found
+// So the error of ReadInConfig will not be ConfigFileNotFoundError
+func createDefaultConfig() error {
+    configFilePath := path.Join(configPath, "config.json")
+    cacheFilePath := path.Join(cachePath, "cache.json")
+    logFilePath := path.Join(logPath, "log.txt")
 
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		return nil, err
-	}
-	cacheDir = path.Join(cacheDir, AppName)
-	cachePath := path.Join(cacheDir, "cache.json")
+    defaultCfg := Config{
+        CachePath:            cacheFilePath,
+        LogPath:              logFilePath,
+        DefaultBlockSize:     1024,
+        SeedOnFileDownloaded: true,
+        SeedOnPieceDownloaded: false,
+    }
 
-	logDir := path.Join(configDir, "log")
-	logPath := path.Join(logDir, "log.txt")
+    viper.SetDefault("CachePath", defaultCfg.CachePath)
+    viper.SetDefault("LogPath", defaultCfg.LogPath)
+    viper.SetDefault("DefaultBlockSize", defaultCfg.DefaultBlockSize)
+    viper.SetDefault("SeedOnFileDownloaded", defaultCfg.SeedOnFileDownloaded)
+    viper.SetDefault("SeedOnPieceDownloaded", defaultCfg.SeedOnPieceDownloaded)
 
-	defaultConfig := &Config{
-		CachePath:        cachePath,
-		LogPath:          logPath,
-		DefaultBlockSize: 1024,
-	}
+    createFileIfNotExist(configFilePath)
 
-	// create config directory
-	err = os.MkdirAll(path.Dir(configPath), os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
+    // write default config
+    err := viper.SafeWriteConfig()
+    if err != nil {
+        return err
+    }
 
-	// save default config
-	err = defaultConfig.Save(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// create cache directory
-	err = os.MkdirAll(path.Dir(cachePath), os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	// create cache file
-	cacheFile, err := os.Create(cachePath)
-	if err != nil {
-		return nil, err
-	}
-	defer cacheFile.Close()
-
-	err = json.NewEncoder(cacheFile).Encode([]string{})
-	if err != nil {
-		return nil, err
-	}
-
-	// create log directory
-	err = os.MkdirAll(path.Dir(logPath), os.ModePerm)
-	if err != nil {
-		return nil, err
-	}
-	// create log file
-	logFile, err := os.Create(logPath)
-	if err != nil {
-		return nil, err
-	}
-	defer logFile.Close()
-
-	return defaultConfig, nil
+    err = viper.ReadInConfig()
+    return err
 }
-func (c *Config) Save(path string) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 
-	return json.NewEncoder(f).Encode(c)
+func createFileIfNotExist(filePath string) error {
+    _, err := os.Stat(filePath)
+    if os.IsNotExist(err) {
+        err = os.MkdirAll(path.Dir(filePath), os.ModePerm)
+        return err
+    }
+    return err
 }

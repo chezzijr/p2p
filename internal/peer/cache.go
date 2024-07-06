@@ -2,6 +2,8 @@ package peer
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 
 	"github.com/chezzijr/p2p/internal/common/connection"
@@ -40,18 +42,33 @@ func (c CachedFilesMap) SaveCache(path string) error {
 	return json.NewEncoder(file).Encode(cachedFiles)
 }
 
+// the path is provided by the config
+// so this function creates a file at the given path if it doesn't exist
+// instead of creating a file when creating config
+// This ensures that the file exists
 func LoadCache(path string) (CachedFilesMap, error) {
+    createFileIfNotExist(path)
+
 	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
+    if err != nil {
+        return nil, err
+    }
 	defer file.Close()
 
 	var cachedFiles CachedFiles
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&cachedFiles); err != nil {
-		return nil, err
-	}
+
+    // If the file was newly created
+    // json decoder will return EOF error
+    // when gracefully shutdown, the cache will be saved
+    // overwriting the file so we just return an empty map
+    err = json.NewDecoder(file).Decode(&cachedFiles)
+    if err != nil {
+        if errors.Is(err, io.EOF) {
+            return make(CachedFilesMap), nil
+        } else {
+            return nil, err
+        }
+    }
 
 	cachedFilesMap := make(CachedFilesMap)
 	for _, cachedFile := range cachedFiles {
