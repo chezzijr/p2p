@@ -3,14 +3,19 @@ package torrent
 import (
 	"bytes"
 	"crypto/sha1"
+	"encoding/hex"
 	"errors"
+
 	"github.com/jackpal/bencode-go"
 )
 
 type Sha1Hash [sha1.Size]byte
 
 func (h Sha1Hash) String() string {
-	return string(h[:])
+    // Apparently the string representation of a sha1 hash is the hex encoding of the hash
+    // Not the string version of the hash slice
+    // https://stackoverflow.com/questions/10701874/generating-the-sha-hash-of-a-string-using-golang
+	return hex.EncodeToString(h[:])
 }
 
 var (
@@ -50,7 +55,7 @@ func (info *torrentBencodeInfo) hash() (Sha1Hash, error) {
 func (info *torrentBencodeInfo) splitPieceHashes() ([]Sha1Hash, error) {
 	hashLen := sha1.Size // default length of sha1 hash in bytes
 	buf := []byte(info.Pieces)
-	if len(buf)%hashLen != 0 {
+	if len(buf) % hashLen != 0 {
 		return nil, ErrMalformedPieces
 	}
 	numHashes := len(buf) / hashLen
